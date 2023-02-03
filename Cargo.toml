@@ -1,0 +1,23 @@
+[package]
+name = "jw-basic"
+version = "0.1.0"
+authors = ["John Wells <john@attackgoat.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+description = "A BASIC language interpreter. Does not conform to existing standards. Mostly a toy."
+
+[dependencies]
+anyhow = "1.0"
+bytemuck = "1.12"
+clap = { version = "4.1.4", features = ["derive"] }
+glam = "0.22"
+inline-spirv = "0.1"
+log = "0.4"
+nom = "7.1"
+nom_locate = "4.1"
+pretty_env_logger = "0.4"
+screen-13 = { path = "../screen-13" }
+
+[dev-dependencies]
+lazy_static = "1.4"

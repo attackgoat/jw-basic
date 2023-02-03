@@ -1,0 +1,13 @@
+COLOR 14, 4
+PRINT "   !DANGER!   "
+
+COLOR 4@, 0@
+PRINT " MAY EXPLODE! "
+
+PRINT
+
+COLOR 7
+PRINT "(do not shake)"
+
+COLOR 2
+PRINT "GREEN"
