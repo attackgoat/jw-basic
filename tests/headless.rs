@@ -31,6 +31,7 @@ fn array() {
     res.assert_printed((15, 0), (9, 0), "99");
     res.assert_printed((15, 0), (10, 0), "100");
     res.assert_printed((15, 0), (11, 0), "101");
+    res.assert_printed((15, 0), (12, 0), "TRUE FALSE 170 0 4.2 0 :)  !");
 }
 
 #[test]

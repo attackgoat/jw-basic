@@ -111,10 +111,22 @@ pub enum Instruction {
     Yield,
 
     Copy(Address, Address),
+    ReadBooleans(Address, Box<[Address]>, Address),
+    ReadBytes(Address, Box<[Address]>, Address),
+    ReadFloats(Address, Box<[Address]>, Address),
     ReadIntegers(Address, Box<[Address]>, Address),
+    ReadStrings(Address, Box<[Address]>, Address),
+    WriteBooleans(Address, Box<[Address]>, Address),
+    WriteBytes(Address, Box<[Address]>, Address),
+    WriteFloats(Address, Box<[Address]>, Address),
     WriteIntegers(Address, Box<[Address]>, Address),
+    WriteStrings(Address, Box<[Address]>, Address),
 
+    DimensionBooleans(Box<[Range<Address>]>, Address),
+    DimensionBytes(Box<[Range<Address>]>, Address),
+    DimensionFloats(Box<[Range<Address>]>, Address),
     DimensionIntegers(Box<[Range<Address>]>, Address),
+    DimensionStrings(Box<[Range<Address>]>, Address),
 
     WriteBoolean(bool, Address),
     WriteByte(u8, Address),
@@ -223,6 +235,7 @@ impl Instruction {
             Expression::Function(id, args, _) => {
                 if let Some((var_ty, var_address)) = variables.get(id.name).copied() {
                     let mut index_address = address + 1;
+
                     // This is an array access - all args must be integers
                     let index_addresses = args
                         .iter()
@@ -252,15 +265,34 @@ impl Instruction {
                         .collect::<Result<Box<_>, SyntaxError>>()?;
 
                     match var_ty {
+                        Type::Boolean => {
+                            program.push(
+                                Self::ReadBooleans(var_address, index_addresses, address).into(),
+                            );
+                        }
+                        Type::Byte => {
+                            program.push(
+                                Self::ReadBytes(var_address, index_addresses, address).into(),
+                            );
+                        }
+                        Type::Float => {
+                            program.push(
+                                Self::ReadFloats(var_address, index_addresses, address).into(),
+                            );
+                        }
                         Type::Integer => {
                             program.push(
                                 Self::ReadIntegers(var_address, index_addresses, address).into(),
                             );
                         }
-                        _ => todo!(),
+                        Type::String => {
+                            program.push(
+                                Self::ReadStrings(var_address, index_addresses, address).into(),
+                            );
+                        }
                     }
 
-                    (Type::Integer, address)
+                    (var_ty, address)
                 } else {
                     // Actual function calls handled here - need map of functions!
                     todo!();
@@ -1090,8 +1122,34 @@ impl Instruction {
                             .collect::<Result<Box<_>, SyntaxError>>()?;
 
                         program.push(
-                            Instruction::WriteIntegers(expr_address, index_addresses, var_address)
-                                .into(),
+                            match var_ty {
+                                Type::Boolean => Instruction::WriteBooleans(
+                                    expr_address,
+                                    index_addresses,
+                                    var_address,
+                                ),
+                                Type::Byte => Instruction::WriteBytes(
+                                    expr_address,
+                                    index_addresses,
+                                    var_address,
+                                ),
+                                Type::Float => Instruction::WriteFloats(
+                                    expr_address,
+                                    index_addresses,
+                                    var_address,
+                                ),
+                                Type::Integer => Instruction::WriteIntegers(
+                                    expr_address,
+                                    index_addresses,
+                                    var_address,
+                                ),
+                                Type::String => Instruction::WriteStrings(
+                                    expr_address,
+                                    index_addresses,
+                                    var_address,
+                                ),
+                            }
+                            .into(),
                         );
                     } else if var_address != expr_address {
                         program.push(Instruction::Copy(expr_address, var_address).into());
@@ -1280,10 +1338,21 @@ impl Instruction {
                             if let Some(subscript_addresses) = subscipt_addresses {
                                 program.push(
                                     match ty {
+                                        Type::Boolean => {
+                                            Self::DimensionBooleans(subscript_addresses, address)
+                                        }
+                                        Type::Byte => {
+                                            Self::DimensionBytes(subscript_addresses, address)
+                                        }
+                                        Type::Float => {
+                                            Self::DimensionFloats(subscript_addresses, address)
+                                        }
                                         Type::Integer => {
                                             Self::DimensionIntegers(subscript_addresses, address)
                                         }
-                                        _ => todo!(),
+                                        Type::String => {
+                                            Self::DimensionStrings(subscript_addresses, address)
+                                        }
                                     }
                                     .into(),
                                 )

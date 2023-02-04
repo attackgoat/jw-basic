@@ -11,6 +11,29 @@ use {
     std::{ops::Range, sync::Arc, time::Instant},
 };
 
+fn index_multi_to_linear(indexes: &[usize], subscripts: &mut Box<[Range<usize>]>) -> usize {
+    let mut idx = 0;
+    let mut mul = 1;
+
+    for (index, (start, len)) in indexes.iter().copied().zip(
+        subscripts
+            .iter()
+            .map(|subscript| (subscript.start, subscript.len() + 1)),
+    ) {
+        idx += (index - start) * mul;
+        mul *= len;
+    }
+
+    idx
+}
+
+fn linear_len_from_multi(subscripts: &Box<[Range<usize>]>) -> usize {
+    subscripts
+        .iter()
+        .map(|subscript| subscript.len() + 1)
+        .product()
+}
+
 pub struct Interpreter {
     color: (u8, u8),
     character_buf: Arc<Buffer>,
@@ -324,6 +347,26 @@ impl Interpreter {
                 .as_slice(),
             ),
         )?))
+    }
+
+    fn deref_index_adresses(&self, index_addresses: &[usize]) -> Box<[usize]> {
+        index_addresses
+            .iter()
+            .copied()
+            .map(|index| self.stack[index].integer() as _)
+            .collect()
+    }
+
+    fn deref_subscript_addresses(
+        &self,
+        subscript_addresses: &[Range<usize>],
+    ) -> Box<[Range<usize>]> {
+        subscript_addresses
+            .iter()
+            .map(|subscript| {
+                self.stack[subscript.start].integer() as _..self.stack[subscript.end].integer() as _
+            })
+            .collect()
     }
 
     pub fn framebuffer_image(&self) -> &Arc<Image> {
@@ -937,40 +980,92 @@ impl Interpreter {
                 }
 
                 &Instruction::Copy(src, dst) => self.stack[dst] = self.stack[src].clone(),
+                Instruction::ReadBooleans(src, index_addresses, dst) => {
+                    let indexes = self.deref_index_adresses(index_addresses);
+
+                    self.stack[*dst] = Value::Boolean(*self.stack[*src].boolean_mut(&indexes));
+                }
+                Instruction::ReadBytes(src, index_addresses, dst) => {
+                    let indexes = self.deref_index_adresses(index_addresses);
+
+                    self.stack[*dst] = Value::Byte(*self.stack[*src].byte_mut(&indexes));
+                }
+                Instruction::ReadFloats(src, index_addresses, dst) => {
+                    let indexes = self.deref_index_adresses(index_addresses);
+
+                    self.stack[*dst] = Value::Float(*self.stack[*src].float_mut(&indexes));
+                }
                 Instruction::ReadIntegers(src, index_addresses, dst) => {
-                    let indexes = index_addresses
-                        .iter()
-                        .copied()
-                        .map(|index| self.stack[index].integer() as _)
-                        .collect::<Box<_>>();
+                    let indexes = self.deref_index_adresses(index_addresses);
 
                     self.stack[*dst] = Value::Integer(*self.stack[*src].integer_mut(&indexes));
                 }
+                Instruction::ReadStrings(src, index_addresses, dst) => {
+                    let indexes = self.deref_index_adresses(index_addresses);
+
+                    self.stack[*dst] =
+                        Value::String(self.stack[*src].string_mut(&indexes).to_owned());
+                }
+                Instruction::WriteBooleans(src, index_addresses, dst) => {
+                    let indexes = self.deref_index_adresses(index_addresses);
+
+                    *self.stack[*dst].boolean_mut(&indexes) = self.stack[*src].boolean();
+                }
+                Instruction::WriteBytes(src, index_addresses, dst) => {
+                    let indexes = self.deref_index_adresses(index_addresses);
+
+                    *self.stack[*dst].byte_mut(&indexes) = self.stack[*src].byte();
+                }
+                Instruction::WriteFloats(src, index_addresses, dst) => {
+                    let indexes = self.deref_index_adresses(index_addresses);
+
+                    *self.stack[*dst].float_mut(&indexes) = self.stack[*src].float();
+                }
                 Instruction::WriteIntegers(src, index_addresses, dst) => {
-                    let indexes = index_addresses
-                        .iter()
-                        .copied()
-                        .map(|index| self.stack[index].integer() as _)
-                        .collect::<Box<_>>();
+                    let indexes = self.deref_index_adresses(index_addresses);
 
                     *self.stack[*dst].integer_mut(&indexes) = self.stack[*src].integer();
                 }
+                Instruction::WriteStrings(src, index_addresses, dst) => {
+                    let indexes = self.deref_index_adresses(index_addresses);
 
+                    *self.stack[*dst].string_mut(&indexes) = self.stack[*src].string().to_owned();
+                }
+
+                Instruction::DimensionBooleans(subscript_addresses, dst) => {
+                    let subscripts = self.deref_subscript_addresses(subscript_addresses);
+                    let data_len = linear_len_from_multi(&subscripts);
+                    let data = vec![false; data_len].into();
+
+                    self.stack[*dst] = Value::Booleans(subscripts, data)
+                }
+                Instruction::DimensionBytes(subscript_addresses, dst) => {
+                    let subscripts = self.deref_subscript_addresses(subscript_addresses);
+                    let data_len = linear_len_from_multi(&subscripts);
+                    let data = vec![0u8; data_len].into();
+
+                    self.stack[*dst] = Value::Bytes(subscripts, data)
+                }
+                Instruction::DimensionFloats(subscript_addresses, dst) => {
+                    let subscripts = self.deref_subscript_addresses(subscript_addresses);
+                    let data_len = linear_len_from_multi(&subscripts);
+                    let data = vec![0f32; data_len].into();
+
+                    self.stack[*dst] = Value::Floats(subscripts, data)
+                }
                 Instruction::DimensionIntegers(subscript_addresses, dst) => {
-                    let subscripts = subscript_addresses
-                        .iter()
-                        .map(|subscript| {
-                            self.stack[subscript.start].integer() as _
-                                ..self.stack[subscript.end].integer() as _
-                        })
-                        .collect::<Box<_>>();
-                    let data_len = subscripts
-                        .iter()
-                        .map(|subscript| subscript.len() + 1)
-                        .product();
+                    let subscripts = self.deref_subscript_addresses(subscript_addresses);
+                    let data_len = linear_len_from_multi(&subscripts);
                     let data = vec![0i32; data_len].into();
 
                     self.stack[*dst] = Value::Integers(subscripts, data)
+                }
+                Instruction::DimensionStrings(subscript_addresses, dst) => {
+                    let subscripts = self.deref_subscript_addresses(subscript_addresses);
+                    let data_len = linear_len_from_multi(&subscripts);
+                    let data = vec!["".to_owned(); data_len].into();
+
+                    self.stack[*dst] = Value::Strings(subscripts, data)
                 }
 
                 &Instruction::WriteBoolean(val, dst) => self.stack[dst] = Value::Boolean(val),
@@ -988,17 +1083,29 @@ impl Interpreter {
 #[derive(Clone, Debug)]
 pub enum Value {
     Boolean(bool),
+    Booleans(Box<[Range<usize>]>, Box<[bool]>),
     Byte(u8),
+    Bytes(Box<[Range<usize>]>, Box<[u8]>),
     Float(f32),
+    Floats(Box<[Range<usize>]>, Box<[f32]>),
     Integer(i32),
     Integers(Box<[Range<usize>]>, Box<[i32]>),
     String(String),
+    Strings(Box<[Range<usize>]>, Box<[String]>),
 }
 
 impl Value {
     fn boolean(&self) -> bool {
         if let Self::Boolean(val) = self {
             *val
+        } else {
+            unreachable!();
+        }
+    }
+
+    fn boolean_mut(&mut self, indexes: &[usize]) -> &mut bool {
+        if let Self::Booleans(subscripts, data) = self {
+            &mut data[index_multi_to_linear(indexes, subscripts)]
         } else {
             unreachable!();
         }
@@ -1012,9 +1119,25 @@ impl Value {
         }
     }
 
+    fn byte_mut(&mut self, indexes: &[usize]) -> &mut u8 {
+        if let Self::Bytes(subscripts, data) = self {
+            &mut data[index_multi_to_linear(indexes, subscripts)]
+        } else {
+            unreachable!();
+        }
+    }
+
     fn float(&self) -> f32 {
         if let Self::Float(val) = self {
             *val
+        } else {
+            unreachable!();
+        }
+    }
+
+    fn float_mut(&mut self, indexes: &[usize]) -> &mut f32 {
+        if let Self::Floats(subscripts, data) = self {
+            &mut data[index_multi_to_linear(indexes, subscripts)]
         } else {
             unreachable!();
         }
@@ -1030,19 +1153,7 @@ impl Value {
 
     fn integer_mut(&mut self, indexes: &[usize]) -> &mut i32 {
         if let Self::Integers(subscripts, data) = self {
-            let mut idx = 0;
-            let mut mul = 1;
-
-            for (index, (start, len)) in indexes.iter().copied().zip(
-                subscripts
-                    .iter()
-                    .map(|subscript| (subscript.start, subscript.len() + 1)),
-            ) {
-                idx += (index - start) * mul;
-                mul *= len;
-            }
-
-            &mut data[idx]
+            &mut data[index_multi_to_linear(indexes, subscripts)]
         } else {
             unreachable!();
         }
@@ -1051,6 +1162,14 @@ impl Value {
     fn string(&self) -> &str {
         if let Self::String(val) = self {
             val
+        } else {
+            unreachable!();
+        }
+    }
+
+    fn string_mut(&mut self, indexes: &[usize]) -> &mut String {
+        if let Self::Strings(subscripts, data) = self {
+            &mut data[index_multi_to_linear(indexes, subscripts)]
         } else {
             unreachable!();
         }

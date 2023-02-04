@@ -25,3 +25,17 @@ PRINT bunch(3, 8, 46, 77)
 PRINT bunch(4, 6, 46, 77)
 PRINT bunch(4, 7, 46, 77)
 PRINT bunch(4, 8, 46, 77)
+
+DIM myBooleans?(3)
+myBooleans(0) = TRUE
+
+DIM myBytes@(3)
+myBytes(0) = &haa@
+
+DIM myFloats!(3)
+myFloats(0) = 4.2
+
+DIM myStrings$(3)
+myStrings(0) = ":)"
+
+PRINT myBooleans(0),myBooleans(1),myBytes(0),myBytes(1),myFloats(0),myFloats(1),myStrings(0),myStrings(1),"!"
