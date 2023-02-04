@@ -34,6 +34,14 @@ pub fn debug_location(f: &mut Formatter<'_>, location: Span) -> FmtResult {
     ))
 }
 
+pub fn location_string(location: Span) -> String {
+    format!(
+        "Line {}, column {}",
+        location.location_line(),
+        location.get_column(),
+    )
+}
+
 #[derive(Debug)]
 pub struct AsciiError;
 

@@ -4,7 +4,7 @@ use {
             Bitwise, Expression, Infix, Label, Literal, Prefix, Print, Relation, Syntax,
             SyntaxError, Type,
         },
-        token::{Token, Tokens},
+        token::{location_string, Token, Tokens},
     },
     log::{debug, error},
     nom::{error::Error, Err},
@@ -514,12 +514,6 @@ impl Instruction {
 
                 match prefix {
                     Prefix::Minus => {
-                        let address = if expr_address == address {
-                            address + 1
-                        } else {
-                            address
-                        };
-
                         match ty {
                             Type::Float => {
                                 program.push(Self::WriteFloat(-1.0, address).into());
@@ -1054,7 +1048,11 @@ impl Instruction {
                     let (expr_ty, expr_address) =
                         Self::compile_expression(address, expr, &mut program, &variables)?;
 
-                    assert!(expr_address <= address);
+                    assert!(
+                        expr_address <= address,
+                        "Invalid allocation: {}",
+                        location_string(expr.location())
+                    );
 
                     if let Some(var_ty) = var.ty {
                         if expr_ty != var_ty {
