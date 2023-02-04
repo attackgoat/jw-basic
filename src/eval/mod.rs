@@ -19,7 +19,7 @@ pub struct Interpreter {
     graphics_data: [u8; (Self::FRAMEBUFFER_WIDTH * Self::FRAMEBUFFER_HEIGHT) as _],
     graphics_dirty: bool,
     graphics_pipeline: Arc<ComputePipeline>,
-    heap: [u8; Self::HEAP_SIZE],
+    // heap: [u8; Self::HEAP_SIZE],
     location: (usize, usize),
     palette_buf: Arc<Lease<Buffer>>,
     palette_data: [u8; 1_024],
@@ -37,7 +37,7 @@ pub struct Interpreter {
 
 impl Interpreter {
     const DEFAULT_COLOR: (u8, u8) = (15, 0xFF);
-    const HEAP_SIZE: usize = 16_384;
+    // const HEAP_SIZE: usize = 16_384;
     pub const TEXT_COLS: usize = 32;
     pub const TEXT_ROWS: usize = 16;
     pub const FRAMEBUFFER_WIDTH: u32 = 160;
@@ -102,7 +102,7 @@ impl Interpreter {
             graphics_dirty: false,
             graphics_pipeline,
             location: (0, 0),
-            heap: [0; Self::HEAP_SIZE],
+            // heap: [0; Self::HEAP_SIZE],
             palette_buf: Arc::new(palette_buf),
             palette_data,
             palette_dirty: false,
@@ -381,8 +381,7 @@ impl Interpreter {
     }
 
     pub fn load_program(&mut self, program: Vec<Instruction>) {
-        self.heap.fill(0);
-        // TODO: self.stack.clear();
+        // self.heap.fill(0);
         self.started_at = Instant::now();
 
         self.program = program;
@@ -510,12 +509,12 @@ impl Interpreter {
         self.graphics_dirty = true;
     }
 
-    pub fn set_palette(&mut self, color: u8, r: u8, g: u8, b: u8) {
-        debug_assert_ne!(color, 0xFF);
+    pub fn set_palette(&mut self, color_index: u8, r: u8, g: u8, b: u8) {
+        debug_assert_ne!(color_index, 0xFF);
 
-        let color_base = (color as usize) << 2;
+        let base = (color_index as usize) << 2;
 
-        self.palette_data[color_base..color_base + 3].copy_from_slice(&[r, g, b]);
+        self.palette_data[base..base + 3].copy_from_slice(&[r, g, b]);
         self.palette_dirty = true;
     }
 
@@ -879,6 +878,10 @@ impl Interpreter {
                     self.stack[foreground_addr].byte(),
                     self.stack[background_addr].byte(),
                 ),
+                &Instruction::Locate(col, row) => self.locate(
+                    self.stack[col].integer() as _,
+                    self.stack[row].integer() as _,
+                ),
                 &Instruction::Line(from_x, from_y, to_x, to_y, color) => {
                     self.line(
                         self.stack[from_x].integer(),
@@ -888,22 +891,23 @@ impl Interpreter {
                         self.stack[color].byte(),
                     );
                 }
-                &Instruction::Rectangle(
-                    from_x,
-                    from_y,
-                    to_x,
-                    to_y,
-                    foreground_color,
-                    background_color,
-                ) => {
-                    // self.rectangle(
-                    //     self.stack[from_x].integer(),
-                    //     self.stack[from_y].integer(),
-                    //     self.stack[to_x].integer(),
-                    //     self.stack[to_y].integer(),
-                    //     self.stack[foreground_color].byte(),
-                    //     self.stack[color].byte(),
-                    // );
+                &Instruction::Palette(color_index, r, g, b) => {
+                    self.set_palette(
+                        self.stack[color_index].byte(),
+                        self.stack[r].byte(),
+                        self.stack[g].byte(),
+                        self.stack[b].byte(),
+                    );
+                }
+                &Instruction::Rectangle(from_x, from_y, to_x, to_y, color, is_filled) => {
+                    self.rectangle(
+                        self.stack[from_x].integer(),
+                        self.stack[from_y].integer(),
+                        self.stack[to_x].integer(),
+                        self.stack[to_y].integer(),
+                        self.stack[color].byte(),
+                        self.stack[is_filled].boolean(),
+                    );
                 }
                 &Instruction::PrintString(addr) => {
                     self.print(self.stack[addr].string().to_owned().as_str());

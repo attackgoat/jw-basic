@@ -90,7 +90,9 @@ pub enum Token<'a> {
     If(Span<'a>),
     Goto(Span<'a>),
     Line(Span<'a>),
+    Locate(Span<'a>),
     Next(Span<'a>),
+    Palette(Span<'a>),
     Print(Span<'a>),
     Rectangle(Span<'a>),
     Return(Span<'a>),
@@ -352,7 +354,9 @@ impl<'a> Token<'a> {
                     "GOTO" => Self::Goto(input),
                     "IF" => Self::If(input),
                     "LINE" => Self::Line(input),
+                    "LOCATE" => Self::Locate(input),
                     "NEXT" => Self::Next(input),
+                    "PALETTE" => Self::Palette(input),
                     "PRINT" => Self::Print(input),
                     "RECTANGLE" => Self::Rectangle(input),
                     "RETURN" => Self::Return(input),
@@ -413,7 +417,9 @@ impl<'a> Token<'a> {
             | Self::Goto(s)
             | Self::If(s)
             | Self::Line(s)
+            | Self::Locate(s)
             | Self::Next(s)
+            | Self::Palette(s)
             | Self::Print(s)
             | Self::Rectangle(s)
             | Self::Return(s)
@@ -500,7 +506,9 @@ impl<'a> Debug for Token<'a> {
             Self::Goto(..) => f.write_str("Goto"),
             Self::If(..) => f.write_str("If"),
             Self::Line(..) => f.write_str("Line"),
+            Self::Locate(..) => f.write_str("Locate"),
             Self::Next(..) => f.write_str("Next"),
+            Self::Palette(..) => f.write_str("Pallete"),
             Self::Print(..) => f.write_str("Print"),
             Self::Rectangle(..) => f.write_str("Rectangle"),
             Self::Return(..) => f.write_str("Return"),

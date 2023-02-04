@@ -2,11 +2,17 @@ use {
     jw_basic::eval::{ascii_5x6, vga_256, Instruction, Interpreter},
     lazy_static::lazy_static,
     screen_13::prelude::*,
-    std::{fs::read, path::PathBuf, sync::Arc},
+    std::{
+        fs::read,
+        path::{Path, PathBuf},
+        sync::Arc,
+    },
 };
 
 lazy_static! {
     static ref CARGO_MANIFEST_DIR: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    static ref BITMAP_DIR: PathBuf = CARGO_MANIFEST_DIR.join("tests/bitmap");
+    static ref PROGRAM_DIR: PathBuf = CARGO_MANIFEST_DIR.join("tests/program");
 }
 
 #[test]
@@ -107,6 +113,31 @@ fn goto() {
 }
 
 #[test]
+fn graphics() {
+    let mut res = Headless::execute("graphics.bas");
+
+    // If you make changes to graphics.bas use this line to update the file!
+    // res.save_framebuffer("graphics1.bmp");
+
+    res.assert_bitmap("graphics1.bmp");
+
+    res.update();
+
+    res.assert_bitmap("graphics2.bmp");
+}
+
+#[test]
+fn locate() {
+    let mut res = Headless::execute("locate.bas");
+
+    res.assert_printed((15, 0), (0, 0), "HELLO");
+    res.assert_printed((15, 0), (0, 30), "10");
+    res.assert_printed((15, 0), (7, 14), "BASIC");
+    res.assert_printed((15, 0), (15, 0), "GOODBYE");
+    res.assert_printed((15, 0), (15, 30), "1");
+}
+
+#[test]
 fn if_then() {
     let res = Headless::execute("if_then.bas");
 
@@ -118,7 +149,7 @@ fn if_then() {
 
 #[test]
 fn while_wend() {
-    let res = Headless::execute("while.bas");
+    let res = Headless::execute("while_wend.bas");
 
     res.assert_printed((15, 0), (0, 0), "1");
     res.assert_printed((15, 0), (1, 0), "2");
@@ -139,11 +170,8 @@ impl Headless {
         4 * (Interpreter::FRAMEBUFFER_WIDTH * Interpreter::FRAMEBUFFER_HEIGHT) as usize;
 
     fn execute(program: &str) -> Self {
-        let program = Instruction::compile(
-            &read(CARGO_MANIFEST_DIR.join("tests/program/").join(program)).unwrap(),
-            false,
-        )
-        .unwrap();
+        let program =
+            Instruction::compile(&read(PROGRAM_DIR.join(program)).unwrap(), false).unwrap();
 
         let device = Arc::new(Device::new(DriverConfig::new().build()).unwrap());
         let interpreter = Interpreter::new(&device, program).unwrap();
@@ -159,6 +187,23 @@ impl Headless {
         res.update();
 
         res
+    }
+
+    fn assert_bitmap(&self, path: impl AsRef<Path>) {
+        use bmp::{open, Image};
+
+        let image = open(BITMAP_DIR.join(path)).unwrap();
+
+        for y in 0..Interpreter::FRAMEBUFFER_HEIGHT {
+            for x in 0..Interpreter::FRAMEBUFFER_WIDTH {
+                let expected_pixel = image.get_pixel(x, y);
+                let (actual_r, actual_g, actual_b, _) = self.pixel(x, y);
+
+                assert_eq!(expected_pixel.r, actual_r);
+                assert_eq!(expected_pixel.g, actual_g);
+                assert_eq!(expected_pixel.b, actual_b);
+            }
+        }
     }
 
     fn assert_printed(&self, color: (u8, u8), location: (u32, u32), s: &str) {
@@ -218,6 +263,25 @@ impl Headless {
         let data = &self.framebuffer[start as usize..end as usize];
 
         (data[0], data[1], data[2], data[3])
+    }
+
+    #[allow(unused)]
+    fn save_framebuffer(&self, path: impl AsRef<Path>) {
+        use bmp::{Image, Pixel};
+
+        let mut image = Image::new(
+            Interpreter::FRAMEBUFFER_WIDTH,
+            Interpreter::FRAMEBUFFER_HEIGHT,
+        );
+
+        for y in 0..Interpreter::FRAMEBUFFER_HEIGHT {
+            for x in 0..Interpreter::FRAMEBUFFER_WIDTH {
+                let (r, g, b, _) = self.pixel(x, y);
+                image.set_pixel(x, y, Pixel::new(r, g, b));
+            }
+        }
+
+        image.save(BITMAP_DIR.join(path)).unwrap();
     }
 
     fn update(&mut self) {

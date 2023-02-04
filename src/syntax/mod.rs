@@ -8,20 +8,17 @@ pub use self::{
 
 use {
     super::token::{debug_location, Span, Token, Tokens},
-    log::error,
     nom::{
         branch::alt,
         bytes::complete::take,
-        combinator::{map, map_res, opt, value, verify},
-        error::{Error, ErrorKind},
+        combinator::{map, opt, value, verify},
         multi::{many0, separated_list0, separated_list1},
         sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
-        Err, IResult,
+        IResult,
     },
     std::{
         error::Error as StdError,
         fmt::{Debug, Display, Formatter, Result as FmtResult},
-        ops::Range,
         str::from_utf8,
     },
 };
@@ -83,7 +80,9 @@ token!(fn_token, Function);
 token!(goto_token, Goto);
 token!(if_token, If);
 token!(line_token, Line);
+token!(locate_token, Locate);
 token!(next_token, Next);
+token!(palette_token, Palette);
 token!(print_token, Print);
 token!(rect_token, Rectangle);
 token!(return_token, Return);
@@ -118,6 +117,14 @@ token!(str_ty, StringType);
 
 pub type Ast<'a> = Vec<Syntax<'a>>;
 pub type SubscriptRange<'a> = (Option<Expression<'a>>, Expression<'a>);
+
+fn parse_coord<'a>(tokens: Tokens<'a>) -> IResult<Tokens<'a>, (Expression<'a>, Expression<'a>)> {
+    delimited(
+        l_paren_punc,
+        separated_pair(Expression::parse, comma_punc, Expression::parse),
+        r_paren_punc,
+    )(tokens)
+}
 
 #[derive(Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -279,6 +286,7 @@ pub enum Syntax<'a> {
         (Expression<'a>, Expression<'a>),
         Expression<'a>,
     ),
+    Locate(Expression<'a>, Option<Expression<'a>>),
     // Input {
     //     prompt: Expression,
     //     result: StackAddress,
@@ -294,6 +302,12 @@ pub enum Syntax<'a> {
     //     col: Expression,
     //     row: Expression,
     // },
+    Palette(
+        Expression<'a>,
+        Expression<'a>,
+        Expression<'a>,
+        Expression<'a>,
+    ),
     Print(Vec<Print<'a>>),
     Rectangle(
         Option<(Expression<'a>, Expression<'a>)>,
@@ -340,6 +354,8 @@ impl<'a> Syntax<'a> {
                 Self::parse_goto,
                 Self::parse_if,
                 Self::parse_line,
+                Self::parse_locate,
+                Self::parse_palette,
                 Self::parse_print,
                 Self::parse_rect,
                 Self::parse_while,
@@ -390,14 +406,14 @@ impl<'a> Syntax<'a> {
     }
 
     fn parse_dim(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
-        fn subscript<'a>(tokens: Tokens<'a>) -> IResult<Tokens<'a>, SubscriptRange<'a>> {
+        fn subscript(tokens: Tokens) -> IResult<Tokens, SubscriptRange> {
             pair(
                 opt(terminated(Expression::parse, to_token)),
                 Expression::parse,
             )(tokens)
         }
 
-        fn subscripts<'a>(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Vec<SubscriptRange<'a>>> {
+        fn subscripts(tokens: Tokens) -> IResult<Tokens, Vec<SubscriptRange>> {
             delimited(
                 l_paren_punc,
                 separated_list0(comma_punc, subscript),
@@ -499,24 +515,49 @@ impl<'a> Syntax<'a> {
         )(tokens)
     }
 
-    fn parse_line(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
-        fn coord<'a>(tokens: Tokens<'a>) -> IResult<Tokens<'a>, (Expression<'a>, Expression<'a>)> {
+    fn parse_locate(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        map(
             delimited(
-                l_paren_punc,
-                separated_pair(Expression::parse, comma_punc, Expression::parse),
-                r_paren_punc,
-            )(tokens)
-        }
+                locate_token,
+                pair(
+                    Expression::parse,
+                    opt(preceded(comma_punc, Expression::parse)),
+                ),
+                end_of_line_punc,
+            ),
+            |(row, col)| Self::Locate(row, col),
+        )(tokens)
+    }
 
+    fn parse_line(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
         map(
             tuple((
                 line_token,
-                opt(terminated(coord, sub_op)),
-                coord,
+                opt(terminated(parse_coord, sub_op)),
+                parse_coord,
                 comma_punc,
                 Expression::parse,
             )),
             |(_, from_coord, to_coord, _, color)| Self::Line(from_coord, to_coord, color),
+        )(tokens)
+    }
+
+    fn parse_palette(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        map(
+            delimited(
+                palette_token,
+                tuple((
+                    Expression::parse,
+                    comma_punc,
+                    Expression::parse,
+                    comma_punc,
+                    Expression::parse,
+                    comma_punc,
+                    Expression::parse,
+                )),
+                opt(end_of_line_punc),
+            ),
+            |(color_index, _, r, _, g, _, b)| Self::Palette(color_index, r, g, b),
         )(tokens)
     }
 
@@ -528,25 +569,17 @@ impl<'a> Syntax<'a> {
     }
 
     fn parse_rect(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
-        fn coord<'a>(tokens: Tokens<'a>) -> IResult<Tokens<'a>, (Expression<'a>, Expression<'a>)> {
-            delimited(
-                l_paren_punc,
-                separated_pair(Expression::parse, comma_punc, Expression::parse),
-                r_paren_punc,
-            )(tokens)
-        }
-
         map(
             tuple((
                 rect_token,
-                opt(terminated(coord, sub_op)),
-                coord,
+                opt(terminated(parse_coord, sub_op)),
+                parse_coord,
                 comma_punc,
                 Expression::parse,
                 opt(preceded(comma_punc, Expression::parse)),
             )),
-            |(_, from_coord, to_coord, _, foreground_color, background_color)| {
-                Self::Rectangle(from_coord, to_coord, foreground_color, background_color)
+            |(_, from_coord, to_coord, _, color, is_filled)| {
+                Self::Rectangle(from_coord, to_coord, color, is_filled)
             },
         )(tokens)
     }
