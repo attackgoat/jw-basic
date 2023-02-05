@@ -119,7 +119,7 @@ token!(str_ty, StringType);
 pub type Ast<'a> = Vec<Syntax<'a>>;
 pub type SubscriptRange<'a> = (Option<Expression<'a>>, Expression<'a>);
 
-fn parse_coord<'a>(tokens: Tokens<'a>) -> IResult<Tokens<'a>, (Expression<'a>, Expression<'a>)> {
+fn parse_coord(tokens: Tokens) -> IResult<Tokens, (Expression, Expression)> {
     delimited(
         l_paren_punc,
         separated_pair(Expression::parse, comma_punc, Expression::parse),

@@ -27,7 +27,7 @@ fn index_multi_to_linear(indexes: &[usize], subscripts: &mut Box<[Range<usize>]>
     idx
 }
 
-fn linear_len_from_multi(subscripts: &Box<[Range<usize>]>) -> usize {
+fn linear_len_from_multi(subscripts: &[Range<usize>]) -> usize {
     subscripts
         .iter()
         .map(|subscript| subscript.len() + 1)

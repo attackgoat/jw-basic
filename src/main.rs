@@ -35,7 +35,11 @@ fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     let event_loop = EventLoop::new()
-        .window(|window| window.with_title("JW-Basic v0.1"))
+        .window(|window| {
+            window
+                .with_title("JW-Basic v0.1")
+                .with_inner_size(LogicalSize::new(160 * 4, 96 * 4))
+        })
         .build()?;
     let present_pipeline = create_present_pipeline(&event_loop.device)?;
 
