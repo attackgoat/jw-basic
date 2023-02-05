@@ -2237,12 +2237,12 @@ impl Instruction {
                         ));
                     }
 
-                    let body_offset = program.len() + program_offset;
+                    let body_offset = program.len() + program_offset + 1;
                     let body =
                         Self::compile_scope(body_ast, body_offset, address, variables.clone())?;
 
                     program
-                        .push(Self::Branch(test_expr_address, body_offset + body.len() + 2).into());
+                        .push(Self::Branch(test_expr_address, body_offset + body.len() + 1).into());
                     program.extend(body.into_iter().map(Into::into));
                     program.push(Self::Jump(test_offset).into());
                 }
