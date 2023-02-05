@@ -45,7 +45,9 @@ fn main() -> anyhow::Result<()> {
     let mut interpreter = Interpreter::new(&event_loop.device, program)?;
 
     event_loop.run(|frame| {
-        interpreter.update(frame.render_graph).unwrap();
+        interpreter
+            .update(frame.render_graph, frame.events)
+            .unwrap();
 
         present_framebuffer_image(&present_pipeline, frame, interpreter.framebuffer_image());
     })?;

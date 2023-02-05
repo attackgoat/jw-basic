@@ -99,6 +99,7 @@ pub enum Instruction {
     Sin(Address, Address),
     ClearScreen,
     Color(Address, Address),
+    KeyDown(Address, Address),
     Line(Address, Address, Address, Address, Address),
     Locate(Address, Address),
     Palette(Address, Address, Address, Address),
@@ -504,6 +505,23 @@ impl Instruction {
                 program.push(Self::Sin(expr_address, address).into());
 
                 (Type::Float, address)
+            }
+            Expression::KeyDown(expr, _) => {
+                let (expr_ty, expr_address) =
+                    Self::compile_expression(address, expr, program, variables)?;
+
+                assert!(expr_address <= address);
+
+                if expr_ty != Type::Byte {
+                    return Err(SyntaxError::from_location(
+                        expr.location(),
+                        format!("{expr_ty} should be Byte"),
+                    ));
+                }
+
+                program.push(Self::KeyDown(expr_address, address).into());
+
+                (Type::Boolean, address)
             }
             Expression::Timer(_) => {
                 program.push(Self::Timer(address).into());

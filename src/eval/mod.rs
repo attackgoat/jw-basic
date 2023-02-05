@@ -34,6 +34,18 @@ fn linear_len_from_multi(subscripts: &Box<[Range<usize>]>) -> usize {
         .product()
 }
 
+fn virtual_key_code(key_code: u8) -> VirtualKeyCode {
+    // TODO: Add more keys or use scan codes or do anything better here
+    match key_code {
+        0 => VirtualKeyCode::Escape,
+        1 => VirtualKeyCode::Left,
+        2 => VirtualKeyCode::Right,
+        3 => VirtualKeyCode::Up,
+        4 => VirtualKeyCode::Down,
+        _ => unimplemented!(),
+    }
+}
+
 pub struct Interpreter {
     color: (u8, u8),
     character_buf: Arc<Buffer>,
@@ -43,6 +55,7 @@ pub struct Interpreter {
     graphics_dirty: bool,
     graphics_pipeline: Arc<ComputePipeline>,
     // heap: [u8; Self::HEAP_SIZE],
+    keyboard: KeyBuf,
     location: (usize, usize),
     palette_buf: Arc<Lease<Buffer>>,
     palette_data: [u8; 1_024],
@@ -124,8 +137,9 @@ impl Interpreter {
             graphics_data,
             graphics_dirty: false,
             graphics_pipeline,
-            location: (0, 0),
             // heap: [0; Self::HEAP_SIZE],
+            keyboard: KeyBuf::default(),
+            location: (0, 0),
             palette_buf: Arc::new(palette_buf),
             palette_data,
             palette_dirty: false,
@@ -575,7 +589,13 @@ impl Interpreter {
         self.framebuffer_images.swap(0, 1);
     }
 
-    pub fn update(&mut self, render_graph: &mut RenderGraph) -> Result<(), DriverError> {
+    pub fn update(
+        &mut self,
+        render_graph: &mut RenderGraph,
+        events: &[Event<()>],
+    ) -> Result<(), DriverError> {
+        update_keyboard(&mut self.keyboard, events);
+
         self.tick();
 
         let previous_framebuffer_image = render_graph.bind_node(&self.framebuffer_images[0]);
@@ -921,6 +941,15 @@ impl Interpreter {
                     self.stack[foreground_addr].byte(),
                     self.stack[background_addr].byte(),
                 ),
+                &Instruction::KeyDown(key, dst) => {
+                    self.stack[dst] = Value::Boolean(
+                        self.keyboard
+                            .is_pressed(&virtual_key_code(self.stack[key].byte()))
+                            || self
+                                .keyboard
+                                .is_held(&virtual_key_code(self.stack[key].byte())),
+                    );
+                }
                 &Instruction::Locate(col, row) => self.locate(
                     self.stack[col].integer() as _,
                     self.stack[row].integer() as _,
@@ -959,7 +988,7 @@ impl Interpreter {
                     self.stack[dst] = Value::Integer(
                         Instant::now()
                             .duration_since(self.started_at)
-                            .as_millis()
+                            .as_micros()
                             .clamp(0, i32::MAX as _) as _,
                     )
                 }

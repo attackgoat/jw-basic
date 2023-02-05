@@ -79,6 +79,7 @@ token!(for_token, For);
 token!(fn_token, Function);
 token!(goto_token, Goto);
 token!(if_token, If);
+token!(key_down_token, KeyDown);
 token!(line_token, Line);
 token!(locate_token, Locate);
 token!(next_token, Next);
@@ -748,6 +749,9 @@ mod tests {
                 }
                 Expression::Cos(lhs, _) => {
                     matches!(rhs, Expression::Cos(rhs, _) if compare_expr(lhs, rhs))
+                }
+                Expression::KeyDown(lhs, _) => {
+                    matches!(rhs, Expression::KeyDown(rhs, _) if compare_expr(lhs, rhs))
                 }
                 Expression::Timer(_) => matches!(rhs, Expression::Timer(_)),
             }

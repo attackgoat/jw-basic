@@ -49,7 +49,7 @@ fn cls() {
 
     res.assert_printed((15, 0), (0, 0), "one");
 
-    res.update();
+    res.update(&[]);
 
     res.assert_printed((15, 0), (0, 0), "two");
 }
@@ -104,11 +104,11 @@ fn goto() {
 
     res.assert_printed((15, 0), (0, 0), "Hello");
 
-    res.update();
+    res.update(&[]);
 
     res.assert_printed((15, 0), (1, 0), "Hello");
 
-    res.update();
+    res.update(&[]);
 
     res.assert_printed((15, 0), (2, 0), "Hello");
 }
@@ -122,7 +122,7 @@ fn graphics() {
 
     res.assert_bitmap("graphics1.bmp");
 
-    res.update();
+    res.update(&[]);
 
     res.assert_bitmap("graphics2.bmp");
 }
@@ -185,7 +185,7 @@ impl Headless {
             palette: vga_256(),
         };
 
-        res.update();
+        res.update(&[]);
 
         res
     }
@@ -285,9 +285,9 @@ impl Headless {
         image.save(BITMAP_DIR.join(path)).unwrap();
     }
 
-    fn update(&mut self) {
+    fn update(&mut self, events: &[Event<()>]) {
         let mut render_graph = RenderGraph::new();
-        self.interpreter.update(&mut render_graph).unwrap();
+        self.interpreter.update(&mut render_graph, events).unwrap();
 
         let framebuffer_image = render_graph.bind_node(self.interpreter.framebuffer_image());
         let framebuffer = {

@@ -2,9 +2,9 @@ use {
     super::{
         abs_token, add_op, and_op, bool_ty, cbool_token, cbyte_token, cfloat_token, cint_token,
         comma_punc, cos_token, cstr_token, debug_location, div_op, eq_op, f32_ty, gt_op, gte_op,
-        i32_ty, l_paren_punc, l_sq_bracket_punc, lt_op, lte_op, mul_op, ne_op, not_op, or_op,
-        r_paren_punc, r_sq_bracket_punc, sin_token, str_ty, sub_op, timer_token, u8_ty, xor_op,
-        Identifier, Literal, Span, Token, Tokens, Type,
+        i32_ty, key_down_token, l_paren_punc, l_sq_bracket_punc, lt_op, lte_op, mul_op, ne_op,
+        not_op, or_op, r_paren_punc, r_sq_bracket_punc, sin_token, str_ty, sub_op, timer_token,
+        u8_ty, xor_op, Identifier, Literal, Span, Token, Tokens, Type,
     },
     nom::{
         branch::alt,
@@ -37,6 +37,7 @@ pub enum Expression<'a> {
     Abs(Option<Type>, Box<Self>, Span<'a>),
     Sin(Box<Self>, Span<'a>),
     Cos(Box<Self>, Span<'a>),
+    KeyDown(Box<Self>, Span<'a>),
     Timer(Span<'a>),
 }
 
@@ -57,6 +58,7 @@ impl<'a> Expression<'a> {
             | Self::Abs(.., res)
             | Self::Sin(_, res)
             | Self::Cos(_, res)
+            | Self::KeyDown(_, res)
             | Self::Timer(res) => *res,
         }
     }
@@ -167,6 +169,16 @@ impl<'a> Expression<'a> {
                 |(_, _, _, expr, _)| Self::Cos(expr, tokens.location()),
             ),
             map(
+                tuple((
+                    key_down_token,
+                    opt(bool_ty),
+                    l_paren_punc,
+                    map(Self::parse, Box::new),
+                    r_paren_punc,
+                )),
+                |(_, _, _, expr, _)| Self::KeyDown(expr, tokens.location()),
+            ),
+            map(
                 tuple((timer_token, opt(i32_ty), l_paren_punc, r_paren_punc)),
                 |(_, _, _, _)| Self::Timer(tokens.location()),
             ),
@@ -205,20 +217,14 @@ impl<'a> Expression<'a> {
         }
 
         let (_, next_token) = take(1usize)(tokens)?;
+        let next_precedence = Self::precedence(next_token[0]);
 
-        match Self::precedence(next_token[0]) {
-            5 if precedence < 5 => {
-                todo!();
-            }
-            6 if precedence < 6 => {
-                todo!();
-            }
-            next_precedence if precedence < next_precedence => {
-                let (tokens, rhs) = Self::parse_infix(tokens, Box::new(lhs), next_precedence)?;
+        if precedence < next_precedence {
+            let (tokens, rhs) = Self::parse_infix(tokens, Box::new(lhs), next_precedence)?;
 
-                Self::parse_rhs(tokens, rhs, precedence)
-            }
-            _ => Ok((tokens, lhs)),
+            Self::parse_rhs(tokens, rhs, precedence)
+        } else {
+            Ok((tokens, lhs))
         }
     }
 
@@ -244,8 +250,6 @@ impl<'a> Expression<'a> {
             | Token::GreaterThan(_) => 2,
             Token::Add(_) | Token::Subtract(_) => 3,
             Token::Multiply(_) | Token::Divide(_) => 4,
-            Token::LeftParenthesis(_) => 5,
-            Token::LeftSquareBracket(_) => 6,
             _ => 0,
         }
     }
@@ -364,6 +368,12 @@ impl<'a> Debug for Expression<'a> {
             }
             Self::Cos(expr, location) => {
                 f.write_str("Cos (")?;
+                expr.fmt(f)?;
+                f.write_str(") ")?;
+                debug_location(f, *location)?;
+            }
+            Self::KeyDown(expr, location) => {
+                f.write_str("KeyDown (")?;
                 expr.fmt(f)?;
                 f.write_str(") ")?;
                 debug_location(f, *location)?;
@@ -680,6 +690,46 @@ mod tests {
     }
 
     #[test]
+    fn math_expressions1() {
+        let input = b"sin(1.2)";
+
+        let expected = Expression::Sin(
+            Box::new(Expression::Literal(Literal::Float(1.2, span(4, 1, input)))),
+            span(0, 1, input),
+        );
+
+        let (_, tokens) = Token::lex(input).unwrap();
+        let (_, result) = Expression::parse(Tokens::new(&tokens)).unwrap();
+
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn math_expressions2() {
+        let input = b"1.0 + sin(1.2) * 2.0";
+
+        let expected = Expression::Infix(
+            Infix::Add,
+            Box::new(Expression::Literal(Literal::Float(1.0, span(0, 1, input)))),
+            Box::new(Expression::Infix(
+                Infix::Multiply,
+                Box::new(Expression::Sin(
+                    Box::new(Expression::Literal(Literal::Float(1.2, span(10, 1, input)))),
+                    span(6, 1, input),
+                )),
+                Box::new(Expression::Literal(Literal::Float(2.0, span(17, 1, input)))),
+                span(15, 1, input),
+            )),
+            span(4, 1, input),
+        );
+
+        let (_, tokens) = Token::lex(input).unwrap();
+        let (_, result) = Expression::parse(Tokens::new(&tokens)).unwrap();
+
+        assert_eq!(expected, result);
+    }
+
+    #[test]
     fn op_precedence() {
         assert!(same_parsed(b"DIM a = 1 + 1", b"DIM a = 1 + 1",));
         assert!(same_parsed(b"DIM a = 6 * 2 + 1", b"DIM a = (6 * 2) + 1",));
@@ -724,6 +774,10 @@ mod tests {
         assert!(same_parsed(
             b"DIM a = b OR c OR d",
             b"DIM a = (b OR c) OR d",
+        ));
+        assert!(same_parsed(
+            b"DIM a = 1.0 + COS(2.0) * 3.0",
+            b"DIM a = 1.0 + (COS(2.0) * 3.0)",
         ));
 
         // The rest should *NOT* match
