@@ -200,7 +200,10 @@ impl Instruction {
 
         if debug {
             debug!("Instructions:");
-            debug!("{:#?}", instrs);
+
+            for (index, instr) in instrs.iter().enumerate() {
+                debug!("{index} {:?}", instr);
+            }
         }
 
         Ok(instrs)
