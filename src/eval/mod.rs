@@ -661,7 +661,7 @@ impl Interpreter {
 
     fn tick(&mut self) {
         while let Some(instr) = self.program.get(self.program_index) {
-            debug!("Executing {:?}", instr);
+            trace!("Executing {:?}", instr);
 
             match instr {
                 &Instruction::AddBytes(a, b, dst) => {
