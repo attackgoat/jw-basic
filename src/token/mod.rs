@@ -266,17 +266,17 @@ impl<'a> Token<'a> {
         token!(div, "/", Token::Divide);
         token!(eq, "=", Token::Equal);
         token!(ne, "<>", Token::NotEqual);
-        token!(gt, ">", Token::GreaterThan);
         token!(gte, ">=", Token::GreaterThanEqual);
-        token!(lt, "<", Token::LessThan);
+        token!(gt, ">", Token::GreaterThan);
         token!(lte, "<=", Token::LessThanEqual);
+        token!(lt, "<", Token::LessThan);
         token!(not, "NOT", Token::Not);
         token!(and, "AND", Token::And);
         token!(or, "OR", Token::Or);
         token!(xor, "XOR", Token::Xor);
 
         alt((
-            add, sub, mul, div, eq, ne, gt, gte, lt, lte, not, and, or, xor,
+            add, sub, mul, div, eq, ne, gte, gt, lte, lt, not, and, or, xor,
         ))(input)
     }
 
