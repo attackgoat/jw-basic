@@ -67,7 +67,7 @@ token!(cbyte_token, ConvertByte);
 token!(cfloat_token, ConvertFloat);
 token!(cint_token, ConvertInteger);
 token!(cstr_token, ConvertString);
-token!(abs_token, Sin);
+token!(abs_token, Abs);
 token!(sin_token, Sin);
 token!(cos_token, Cos);
 token!(cls_token, ClearScreen);
