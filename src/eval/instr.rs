@@ -15,6 +15,7 @@ pub type Address = usize;
 
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Instruction {
     AddBytes(Address, Address, Address),
     AddFloats(Address, Address, Address),
