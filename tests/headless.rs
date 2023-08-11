@@ -158,6 +158,17 @@ fn while_wend() {
     res.assert_printed((15, 0), (3, 0), "0");
 }
 
+/// Helper to pick a queue family for submitting device commands.
+fn device_queue_family_index(device: &Device, flags: vk::QueueFlags) -> Option<usize> {
+    device
+        .physical_device
+        .queue_families
+        .iter()
+        .enumerate()
+        .find(|(_, properties)| properties.queue_flags.contains(flags))
+        .map(|(index, _)| index)
+}
+
 struct Headless {
     device: Arc<Device>,
     framebuffer: [u8; Self::FRAMEBUFFER_LEN],
@@ -174,7 +185,7 @@ impl Headless {
         let program =
             Instruction::compile(&read(PROGRAM_DIR.join(program)).unwrap(), false).unwrap();
 
-        let device = Arc::new(Device::new(DriverConfig::new().build()).unwrap());
+        let device = Arc::new(Device::create_headless(DeviceInfo::new()).unwrap());
         let interpreter = Interpreter::new(&device, program).unwrap();
 
         let mut res = Self {
@@ -306,9 +317,15 @@ impl Headless {
                 .unbind_node(temp_buf)
         };
 
+        let queue_family_index = device_queue_family_index(
+            &self.device,
+            vk::QueueFlags::COMPUTE | vk::QueueFlags::GRAPHICS | vk::QueueFlags::TRANSFER,
+        )
+        .unwrap();
+
         render_graph
             .resolve()
-            .submit(&mut HashPool::new(&self.device), 0)
+            .submit(&mut HashPool::new(&self.device), queue_family_index, 0)
             .unwrap()
             .wait_until_executed()
             .unwrap();

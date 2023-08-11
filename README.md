@@ -294,10 +294,13 @@ In addition to the test programs, there are unit and integration tests of the la
 something goes wrong *you should* receive an error indicating the line and column number which
 caused the issue.
 
+_Some Vulkan drivers will fail if too many devices are created at once. When testing you may need to
+limit the number of threads._
+
 Running the tests:
 
 ```
-cargo test
+cargo test -- --test-threads=1
 ```
 
 

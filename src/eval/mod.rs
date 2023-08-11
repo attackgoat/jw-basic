@@ -119,9 +119,18 @@ impl Interpreter {
             render_graph.clear_color_image(framebuffer_image);
         }
 
+        let queue_family_index = device
+            .physical_device
+            .queue_families
+            .iter()
+            .enumerate()
+            .find(|(_, properties)| properties.queue_flags.contains(vk::QueueFlags::TRANSFER))
+            .map(|(index, _)| index)
+            .unwrap();
+
         render_graph
             .resolve()
-            .submit(&mut HashPool::new(device), 0)?;
+            .submit(&mut HashPool::new(device), queue_family_index, 0)?;
 
         const fn zero_byte() -> Value {
             Value::Byte(0)
