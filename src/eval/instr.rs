@@ -138,7 +138,7 @@ pub enum Instruction {
 }
 
 impl Instruction {
-    pub fn compile(source_code: &[u8], debug: bool) -> Result<Vec<Self>, SyntaxError> {
+    pub fn compile(source_code: &[u8]) -> Result<Vec<Self>, SyntaxError> {
         // Lex the source code into tokens - this only checks for symbols being identifiable
         let (remaining_tokens, tokens) = match Token::lex(source_code) {
             Err(Err::Error(Error { input, code: _ }) | Err::Failure(Error { input, code: _ })) => {
@@ -151,10 +151,8 @@ impl Instruction {
             Ok(res) => Ok(res),
         }?;
 
-        if debug {
-            debug!("Tokens:");
-            debug!("{:#?}", tokens);
-        }
+        debug!("Tokens:");
+        debug!("{:#?}", tokens);
 
         if !remaining_tokens.is_empty() {
             error!("Unparsed tokens");
@@ -178,10 +176,8 @@ impl Instruction {
             Ok(res) => Ok(res),
         }?;
 
-        if debug {
-            debug!("Syntax:");
-            debug!("{:#?}", syntax);
-        }
+        debug!("Syntax:");
+        debug!("{:#?}", syntax);
 
         if !remaining_syntax.is_empty() {
             error!("Unparsed syntax");
@@ -200,12 +196,10 @@ impl Instruction {
             .map(ScopeInstruction::instruction)
             .collect::<Result<Vec<Instruction>, SyntaxError>>()?;
 
-        if debug {
-            debug!("Instructions:");
+        debug!("Instructions:");
 
-            for (index, instr) in instrs.iter().enumerate() {
-                debug!("{index} {:?}", instr);
-            }
+        for (index, instr) in instrs.iter().enumerate() {
+            debug!("{index} {:?}", instr);
         }
 
         Ok(instrs)
@@ -2336,7 +2330,7 @@ mod tests {
             Instruction::Copy(2, 0),
         ];
 
-        let result = Instruction::compile(input, false).unwrap();
+        let result = Instruction::compile(input).unwrap();
 
         assert_eq!(expected, result);
     }

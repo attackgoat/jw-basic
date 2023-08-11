@@ -182,8 +182,7 @@ impl Headless {
         4 * (Interpreter::FRAMEBUFFER_WIDTH * Interpreter::FRAMEBUFFER_HEIGHT) as usize;
 
     fn execute(program: &str) -> Self {
-        let program =
-            Instruction::compile(&read(PROGRAM_DIR.join(program)).unwrap(), false).unwrap();
+        let program = Instruction::compile(&read(PROGRAM_DIR.join(program)).unwrap()).unwrap();
 
         let device = Arc::new(Device::create_headless(DeviceInfo::new()).unwrap());
         let interpreter = Interpreter::new(&device, program).unwrap();

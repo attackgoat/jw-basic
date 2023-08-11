@@ -21,12 +21,6 @@ use {
 struct Args {
     /// File to load and interpret (.bas format)
     path: String,
-
-    /// Display debugging information
-    ///
-    /// NOTE: Set `RUST_LOG=debug` environment variable to display output
-    #[arg(short, long)]
-    debug: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -43,8 +37,8 @@ fn main() -> anyhow::Result<()> {
         .build()?;
     let present_pipeline = create_present_pipeline(&event_loop.device)?;
 
-    // Run with `RUST_LOG=debug` and `--debug` to see the generated instructions
-    let program = Instruction::compile(&read(args.path)?, args.debug)?;
+    // Run with `RUST_LOG=debug` to see the generated instructions
+    let program = Instruction::compile(&read(args.path)?)?;
 
     let mut interpreter = Interpreter::new(&event_loop.device, program)?;
 
