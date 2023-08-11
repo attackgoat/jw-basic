@@ -47,7 +47,7 @@ pub struct AsciiError;
 
 macro_rules! token {
     ($func_name: ident, $tag_string: literal, $output_token: expr) => {
-        fn $func_name<'a>(s: Span<'a>) -> IResult<Span<'a>, Token> {
+        fn $func_name(s: Span<'_>) -> IResult<Span<'_>, Token> {
             map(tag($tag_string), |_| $output_token(s))(s)
         }
     };

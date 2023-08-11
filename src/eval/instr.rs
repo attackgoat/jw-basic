@@ -211,11 +211,11 @@ impl Instruction {
         Ok(instrs)
     }
 
-    fn compile_expression<'a>(
+    fn compile_expression(
         address: Address,
         expr: &Expression,
         program: &mut Vec<ScopeInstruction>,
-        variables: &HashMap<&'a str, (Type, Address)>,
+        variables: &HashMap<&str, (Type, Address)>,
     ) -> Result<(Type, Address), SyntaxError> {
         let (ty, address) = match expr {
             Expression::Literal(lit) => {

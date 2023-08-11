@@ -99,12 +99,9 @@ token!(yield_token, Yield);
 // Punctuations
 token!(colon_punc, Colon);
 token!(comma_punc, Comma);
-token!(continuation_punc, Continuation);
 token!(end_of_line_punc, EndOfLine);
-token!(l_curly_bracket_punc, LeftCurlyBracket);
 token!(l_paren_punc, LeftParenthesis);
 token!(l_sq_bracket_punc, LeftSquareBracket);
-token!(r_curly_bracket_punc, RightCurlyBracket);
 token!(r_paren_punc, RightParenthesis);
 token!(r_sq_bracket_punc, RightSquareBracket);
 token!(semicolon_punc, Semicolon);
@@ -292,17 +289,6 @@ pub enum Syntax<'a> {
     //     prompt: Expression,
     //     result: StackAddress,
     // },
-    // Line {
-    //     x0: Expression,
-    //     y0: Expression,
-    //     x1: Expression,
-    //     y2: Expression,
-    //     color: Expression,
-    // },
-    // Locate {
-    //     col: Expression,
-    //     row: Expression,
-    // },
     Palette(
         Expression<'a>,
         Expression<'a>,
@@ -320,15 +306,10 @@ pub enum Syntax<'a> {
         test: Expression<'a>,
         cases: Vec<(Vec<Case<'a>>, Ast<'a>)>,
         default: Option<(Case<'a>, Ast<'a>)>,
-    }, // SetData {
+    },
+    // SetData {
     //     address: usize,
     //     value: Expression,
-    // },
-    // SetPalette {
-    //     color: Expression,
-    //     r: Expression,
-    //     g: Expression,
-    //     b: Expression,
     // },
     // SetPixel {
     //     x: Expression,
