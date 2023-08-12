@@ -129,7 +129,7 @@ fn graphics() {
 
 #[test]
 fn locate() {
-    let mut res = Headless::execute("locate.bas");
+    let res = Headless::execute("locate.bas");
 
     res.assert_printed((15, 0), (0, 0), "HELLO");
     res.assert_printed((15, 0), (0, 30), "10");
@@ -156,6 +156,77 @@ fn while_wend() {
     res.assert_printed((15, 0), (1, 0), "2");
     res.assert_printed((15, 0), (2, 0), "1");
     res.assert_printed((15, 0), (3, 0), "0");
+}
+
+#[test]
+fn peek_poke() {
+    let mut res = Headless::execute("peek_poke.bas");
+
+    res.assert_printed((15, 0), (0, 0), "0                               ");
+    res.assert_printed((15, 0), (1, 0), "FALSE                           ");
+    res.assert_printed((15, 0), (2, 0), "0                               ");
+    res.assert_printed((15, 0), (3, 0), "0                               ");
+    res.assert_printed((15, 0), (4, 0), "0                               ");
+    res.assert_printed((15, 0), (5, 0), "                                ");
+    res.assert_printed((15, 0), (6, 0), "OK1                             ");
+
+    res.update(&[]);
+
+    res.assert_printed((15, 0), (0, 0), "1                               ");
+    res.assert_printed((15, 0), (1, 0), "TRUE                            ");
+    res.assert_printed((15, 0), (2, 0), "1                               ");
+    res.assert_printed((15, 0), (3, 0), "0.000000000000000000000000000000");
+    res.assert_printed((15, 0), (4, 0), "000000000000001                 ");
+    res.assert_printed((15, 0), (5, 0), "1                               ");
+    res.assert_printed((15, 0), (6, 0), "                                ");
+    res.assert_printed((15, 0), (7, 0), "OK2                             ");
+
+    res.update(&[]);
+
+    res.assert_printed((15, 0), (0, 0), "255                             ");
+    res.assert_printed((15, 0), (1, 0), "FALSE                           ");
+    res.assert_printed((15, 0), (2, 0), "255                             ");
+    res.assert_printed((15, 0), (3, 0), "0.000000000000000000000000000000");
+    res.assert_printed((15, 0), (4, 0), "000000000045916                 ");
+    res.assert_printed((15, 0), (5, 0), "32767                           ");
+    res.assert_printed((15, 0), (6, 0), "                                ");
+    res.assert_printed((15, 0), (7, 0), "OK3                             ");
+
+    res.update(&[]);
+
+    res.assert_printed((15, 0), (0, 0), "42                              ");
+    res.assert_printed((15, 0), (1, 0), "FALSE                           ");
+    res.assert_printed((15, 0), (2, 0), "42                              ");
+    res.assert_printed((15, 0), (3, 0), "0.000000000000000000000000000000");
+    res.assert_printed((15, 0), (4, 0), "000000000000059                 ");
+    res.assert_printed((15, 0), (5, 0), "42                              ");
+    res.assert_printed((15, 0), (6, 0), "*                               ");
+    res.assert_printed((15, 0), (7, 0), "OK4                             ");
+
+    res.update(&[]);
+
+    res.assert_printed((15, 0), (0, 0), "0                               ");
+    res.assert_printed((15, 0), (1, 0), "FALSE                           ");
+    res.assert_printed((15, 0), (2, 0), "0                               ");
+    res.assert_printed((15, 0), (3, 0), "42                              ");
+    res.assert_printed((15, 0), (4, 0), "1109917696                      ");
+    res.assert_printed((15, 0), (5, 0), "                                ");
+    res.assert_printed((15, 0), (6, 0), "OK5                             ");
+
+    res.update(&[]);
+
+    res.assert_printed((15, 0), (0, 0), "72                              ");
+    res.assert_printed((15, 0), (1, 0), "FALSE                           ");
+    res.assert_printed((15, 0), (2, 0), "72                              ");
+    res.assert_printed((15, 0), (3, 0), "1143139100000000000000000000    ");
+    res.assert_printed((15, 0), (4, 0), "1819043144                      ");
+    res.assert_printed((15, 0), (5, 0), "Hello there                     ");
+    res.assert_printed((15, 0), (6, 0), "OK6                             ");
+
+    res.update(&[]);
+
+    res.assert_printed((15, 0), (0, 0), "Hell   here                     ");
+    res.assert_printed((15, 0), (1, 0), "OK7                             ");
 }
 
 /// Helper to pick a queue family for submitting device commands.
@@ -201,7 +272,7 @@ impl Headless {
     }
 
     fn assert_bitmap(&self, path: impl AsRef<Path>) {
-        use bmp::{open, Image};
+        use bmp::open;
 
         let image = open(BITMAP_DIR.join(path)).unwrap();
 
@@ -245,7 +316,7 @@ impl Headless {
                         self.pixel(pixel_x, pixel_y);
 
                     let msg = format!(
-                        "character `{}` at row={row} col={col}, x={pixel_x}, y={pixel_y}",
+                        "character {char_index} `{}` at row={row} col={col}, x={pixel_x}, y={pixel_y}",
                         (char + 32) as char,
                     );
 

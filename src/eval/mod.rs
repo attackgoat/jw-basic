@@ -8,7 +8,7 @@ use {
     bytemuck::cast_slice,
     inline_spirv::inline_spirv,
     screen_13::prelude::*,
-    std::{ops::Range, sync::Arc, time::Instant},
+    std::{mem::size_of, ops::Range, sync::Arc, time::Instant},
 };
 
 fn index_multi_to_linear(indexes: &[usize], subscripts: &mut Box<[Range<usize>]>) -> usize {
@@ -54,7 +54,7 @@ pub struct Interpreter {
     graphics_data: [u8; (Self::FRAMEBUFFER_WIDTH * Self::FRAMEBUFFER_HEIGHT) as _],
     graphics_dirty: bool,
     graphics_pipeline: Arc<ComputePipeline>,
-    // heap: [u8; Self::HEAP_SIZE],
+    heap: [u8; Self::HEAP_SIZE],
     keyboard: KeyBuf,
     location: (usize, usize),
     palette_buf: Arc<Lease<Buffer>>,
@@ -73,7 +73,7 @@ pub struct Interpreter {
 
 impl Interpreter {
     const DEFAULT_COLOR: (u8, u8) = (15, 0xFF);
-    // const HEAP_SIZE: usize = 16_384;
+    const HEAP_SIZE: usize = 16_384;
     pub const TEXT_COLS: usize = 32;
     pub const TEXT_ROWS: usize = 16;
     pub const FRAMEBUFFER_WIDTH: u32 = 160;
@@ -146,7 +146,7 @@ impl Interpreter {
             graphics_data,
             graphics_dirty: false,
             graphics_pipeline,
-            // heap: [0; Self::HEAP_SIZE],
+            heap: [0; Self::HEAP_SIZE],
             keyboard: KeyBuf::default(),
             location: (0, 0),
             palette_buf: Arc::new(palette_buf),
@@ -396,6 +396,16 @@ impl Interpreter {
         &self.framebuffer_images[0]
     }
 
+    #[allow(dead_code)]
+    pub fn heap(&self) -> &[u8] {
+        &self.heap
+    }
+
+    #[allow(dead_code)]
+    pub fn heap_mut(&self) -> &[u8] {
+        &self.heap
+    }
+
     pub fn line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: u8) {
         debug_assert!(x0 >= 0);
         debug_assert!(x1 >= 0);
@@ -446,8 +456,9 @@ impl Interpreter {
         }
     }
 
+    #[allow(dead_code)]
     pub fn load_program(&mut self, program: Vec<Instruction>) {
-        // self.heap.fill(0);
+        self.heap.fill(0);
         self.started_at = Instant::now();
 
         self.program = program;
@@ -458,6 +469,7 @@ impl Interpreter {
         self.location = (col.min(Self::TEXT_COLS - 1), row.min(Self::TEXT_ROWS));
     }
 
+    #[allow(dead_code)]
     pub fn palette(&self, color: u8) -> (u8, u8, u8) {
         let color_base = (color as usize) << 2;
         let r = self.palette_data[color_base];
@@ -467,6 +479,7 @@ impl Interpreter {
         (r, g, b)
     }
 
+    #[allow(dead_code)]
     pub fn pixel(&mut self, x: i32, y: i32) -> u8 {
         debug_assert!(x >= 0);
         debug_assert!(y >= 0);
@@ -999,7 +1012,79 @@ impl Interpreter {
                             .duration_since(self.started_at)
                             .as_micros()
                             .clamp(0, i32::MAX as _) as _,
-                    )
+                    );
+                }
+
+                &Instruction::PeekBoolean(heap_addr, stack_addr) => {
+                    let heap_addr = self.stack[heap_addr].integer() as usize;
+                    self.stack[stack_addr] = Value::Boolean(self.heap[heap_addr] == 1);
+                }
+                &Instruction::PeekByte(heap_addr, stack_addr) => {
+                    let heap_addr = self.stack[heap_addr].integer() as usize;
+                    self.stack[stack_addr] = Value::Byte(self.heap[heap_addr]);
+                }
+                &Instruction::PeekFloat(heap_addr, stack_addr) => {
+                    let heap_addr = self.stack[heap_addr].integer() as usize;
+                    self.stack[stack_addr] = Value::Float(f32::from_ne_bytes(
+                        self.heap[heap_addr..heap_addr + size_of::<f32>()]
+                            .try_into()
+                            .unwrap(),
+                    ));
+                }
+                &Instruction::PeekInteger(heap_addr, stack_addr) => {
+                    let heap_addr = self.stack[heap_addr].integer() as usize;
+                    self.stack[stack_addr] = Value::Integer(i32::from_ne_bytes(
+                        self.heap[heap_addr..heap_addr + size_of::<i32>()]
+                            .try_into()
+                            .unwrap(),
+                    ));
+                }
+                &Instruction::PeekString(heap_addr, stack_addr) => {
+                    let heap_addr = self.stack[heap_addr].integer() as usize;
+                    let mut end = heap_addr;
+                    loop {
+                        let char = self.heap[end];
+                        if !(32..=127).contains(&char) {
+                            break;
+                        }
+
+                        end += 1;
+                    }
+
+                    self.stack[stack_addr] = Value::String(
+                        String::from_utf8(self.heap[heap_addr..end].to_vec()).unwrap(),
+                    );
+                }
+
+                &Instruction::PokeBoolean(heap_addr, stack_addr) => {
+                    let heap_addr = self.stack[heap_addr].integer() as usize;
+                    self.heap[heap_addr] = if self.stack[stack_addr].boolean() {
+                        0x01
+                    } else {
+                        0x00
+                    };
+                }
+                &Instruction::PokeByte(heap_addr, stack_addr) => {
+                    let heap_addr = self.stack[heap_addr].integer() as usize;
+                    self.heap[heap_addr] = self.stack[stack_addr].byte();
+                }
+                &Instruction::PokeFloat(heap_addr, stack_addr) => {
+                    let heap_addr = self.stack[heap_addr].integer() as usize;
+                    self.heap[heap_addr..heap_addr + size_of::<f32>()]
+                        .copy_from_slice(&self.stack[stack_addr].float().to_ne_bytes());
+                }
+                &Instruction::PokeInteger(heap_addr, stack_addr) => {
+                    let heap_addr = self.stack[heap_addr].integer() as usize;
+                    self.heap[heap_addr..heap_addr + size_of::<i32>()]
+                        .copy_from_slice(&self.stack[stack_addr].integer().to_ne_bytes());
+                }
+                &Instruction::PokeString(heap_addr, stack_addr) => {
+                    let heap_addr = self.stack[heap_addr].integer() as usize;
+                    let str = self.stack[stack_addr].string();
+                    let str = str.as_bytes();
+
+                    self.heap[heap_addr..heap_addr + str.len()].copy_from_slice(str);
+                    self.heap[heap_addr + str.len() + 1] = 0;
                 }
 
                 &Instruction::Branch(addr, program_index) => {

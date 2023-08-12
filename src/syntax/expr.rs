@@ -3,15 +3,15 @@ use {
         abs_token, add_op, and_op, bool_ty, cbool_token, cbyte_token, cfloat_token, cint_token,
         comma_punc, cos_token, cstr_token, debug_location, div_op, eq_op, f32_ty, gt_op, gte_op,
         i32_ty, key_down_token, l_paren_punc, l_sq_bracket_punc, lt_op, lte_op, mul_op, ne_op,
-        not_op, or_op, r_paren_punc, r_sq_bracket_punc, sin_token, str_ty, sub_op, timer_token,
-        u8_ty, xor_op, Identifier, Literal, Span, Token, Tokens, Type,
+        not_op, or_op, peek_token, r_paren_punc, r_sq_bracket_punc, sin_token, str_ty, sub_op,
+        timer_token, u8_ty, xor_op, Identifier, Literal, Span, Token, Tokens, Type,
     },
     nom::{
         branch::alt,
         bytes::complete::take,
         combinator::{map, opt, value},
         multi::separated_list0,
-        sequence::{delimited, pair, tuple},
+        sequence::{delimited, pair, preceded, tuple},
         IResult,
     },
     std::fmt::{Debug, Formatter, Result as FmtResult},
@@ -37,6 +37,7 @@ pub enum Expression<'a> {
     Abs(Option<Type>, Box<Self>, Span<'a>),
     Sin(Box<Self>, Span<'a>),
     Cos(Box<Self>, Span<'a>),
+    Peek(Option<Type>, Box<Self>, Span<'a>),
     KeyDown(Box<Self>, Span<'a>),
     Timer(Span<'a>),
 }
@@ -58,6 +59,7 @@ impl<'a> Expression<'a> {
             | Self::Abs(.., res)
             | Self::Sin(_, res)
             | Self::Cos(_, res)
+            | Self::Peek(.., res)
             | Self::KeyDown(_, res)
             | Self::Timer(res) => *res,
         }
@@ -168,6 +170,7 @@ impl<'a> Expression<'a> {
                 )),
                 |(_, _, _, expr, _)| Self::Cos(expr, tokens.location()),
             ),
+            Self::parse_peek,
             map(
                 tuple((
                     key_down_token,
@@ -196,6 +199,16 @@ impl<'a> Expression<'a> {
             Self::parse_prefix,
             delimited(l_paren_punc, Self::parse, r_paren_punc),
         ))(tokens)
+    }
+
+    fn parse_peek(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        map(
+            pair(
+                preceded(peek_token, opt(Type::parse)),
+                delimited(l_paren_punc, map(Self::parse, Box::new), r_paren_punc),
+            ),
+            |(ty, expr)| Self::Peek(ty, expr, tokens.location()),
+        )(tokens)
     }
 
     fn parse_pratt(tokens: Tokens<'a>, precedence: usize) -> IResult<Tokens<'a>, Self> {
@@ -368,6 +381,18 @@ impl<'a> Debug for Expression<'a> {
             }
             Self::Cos(expr, location) => {
                 f.write_str("Cos (")?;
+                expr.fmt(f)?;
+                f.write_str(") ")?;
+                debug_location(f, *location)?;
+            }
+            Self::Peek(ty, expr, location) => {
+                f.write_str("Peek ")?;
+
+                if let Some(ty) = ty {
+                    f.write_fmt(format_args!("{} ", ty))?;
+                }
+
+                f.write_str("(")?;
                 expr.fmt(f)?;
                 f.write_str(") ")?;
                 debug_location(f, *location)?;

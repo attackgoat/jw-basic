@@ -84,6 +84,8 @@ token!(line_token, Line);
 token!(locate_token, Locate);
 token!(next_token, Next);
 token!(palette_token, Palette);
+token!(peek_token, Peek);
+token!(poke_token, Poke);
 token!(print_token, Print);
 token!(rect_token, Rectangle);
 token!(return_token, Return);
@@ -258,10 +260,6 @@ pub enum Syntax<'a> {
         Option<Expression<'a>>,
         Ast<'a>,
     ),
-    // GetData {
-    //     address: usize,
-    //     result: StackAddress,
-    // },
     // GetPalette {
     //     color: Expression,
     //     result_r: StackAddress,
@@ -295,6 +293,7 @@ pub enum Syntax<'a> {
         Expression<'a>,
         Expression<'a>,
     ),
+    Poke(Expression<'a>, Expression<'a>),
     Print(Vec<Print<'a>>),
     Rectangle(
         Option<(Expression<'a>, Expression<'a>)>,
@@ -307,10 +306,6 @@ pub enum Syntax<'a> {
         cases: Vec<(Vec<Case<'a>>, Ast<'a>)>,
         default: Option<(Case<'a>, Ast<'a>)>,
     },
-    // SetData {
-    //     address: usize,
-    //     value: Expression,
-    // },
     // SetPixel {
     //     x: Expression,
     //     y: Expression,
@@ -338,6 +333,7 @@ impl<'a> Syntax<'a> {
                 Self::parse_line,
                 Self::parse_locate,
                 Self::parse_palette,
+                Self::parse_poke,
                 Self::parse_print,
                 Self::parse_rect,
                 Self::parse_while,
@@ -543,6 +539,16 @@ impl<'a> Syntax<'a> {
         )(tokens)
     }
 
+    fn parse_poke(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        map(
+            preceded(
+                poke_token,
+                separated_pair(Expression::parse, comma_punc, Expression::parse),
+            ),
+            |(address, val)| Self::Poke(address, val),
+        )(tokens)
+    }
+
     fn parse_print(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
         map(
             delimited(print_token, many0(Print::parse), opt(end_of_line_punc)),
@@ -730,6 +736,9 @@ mod tests {
                 }
                 Expression::Cos(lhs, _) => {
                     matches!(rhs, Expression::Cos(rhs, _) if compare_expr(lhs, rhs))
+                }
+                Expression::Peek(lhs_ty, lhs, _) => {
+                    matches!(rhs, Expression::Peek(rhs_ty, rhs, _) if compare_opt(lhs_ty, rhs_ty, Type::eq) && compare_expr(lhs, rhs))
                 }
                 Expression::KeyDown(lhs, _) => {
                     matches!(rhs, Expression::KeyDown(rhs, _) if compare_expr(lhs, rhs))

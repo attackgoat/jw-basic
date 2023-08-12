@@ -102,6 +102,8 @@ pub enum Token<'a> {
     Locate(Span<'a>),
     Next(Span<'a>),
     Palette(Span<'a>),
+    Peek(Span<'a>),
+    Poke(Span<'a>),
     Print(Span<'a>),
     Rectangle(Span<'a>),
     Return(Span<'a>),
@@ -367,6 +369,8 @@ impl<'a> Token<'a> {
                     "LOCATE" => Self::Locate(input),
                     "NEXT" => Self::Next(input),
                     "PALETTE" => Self::Palette(input),
+                    "PEEK" => Self::Peek(input),
+                    "POKE" => Self::Poke(input),
                     "PRINT" => Self::Print(input),
                     "RECTANGLE" => Self::Rectangle(input),
                     "RETURN" => Self::Return(input),
@@ -431,6 +435,8 @@ impl<'a> Token<'a> {
             | Self::Locate(s)
             | Self::Next(s)
             | Self::Palette(s)
+            | Self::Peek(s)
+            | Self::Poke(s)
             | Self::Print(s)
             | Self::Rectangle(s)
             | Self::Return(s)
@@ -521,6 +527,8 @@ impl<'a> Debug for Token<'a> {
             Self::Locate(..) => f.write_str("Locate"),
             Self::Next(..) => f.write_str("Next"),
             Self::Palette(..) => f.write_str("Pallete"),
+            Self::Peek(..) => f.write_str("Peek"),
+            Self::Poke(..) => f.write_str("Poke"),
             Self::Print(..) => f.write_str("Print"),
             Self::Rectangle(..) => f.write_str("Rectangle"),
             Self::Return(..) => f.write_str("Return"),

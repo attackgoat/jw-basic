@@ -245,6 +245,33 @@ PALETTE color, r, g, b
     r, g, b: Any expression which evaluates to a byte.
 
 
+PEEK[? | @ | ! | % | $](address)
+
+    Returns a byte value (by default) stored at a specified memory location.
+
+    address:    A byte position in the zero-initialized heap memory; a value in the
+                range 0 through 16,383.
+
+    Examples:
+
+        myByte = PEEK(420)
+        someFloat = PEEK!(128)
+
+
+POKE(address, expr)
+
+    Writes a value to a specified memory location.
+
+    address:    A byte position in the zero-initialized heap memory; a value in the
+                range 0 through 16,383.
+    expr:       Any expression.
+
+    Examples:
+
+        POKE(420, 255@)
+        POKE(128, 42.0)
+
+
 PRINT [expr][; expr][, expr]
 
     PRINT displays text using the current foreground and background colors at the current cursor

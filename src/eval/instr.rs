@@ -108,6 +108,18 @@ pub enum Instruction {
     Rectangle(Address, Address, Address, Address, Address, Address),
     Timer(Address),
 
+    PeekBoolean(Address, Address),
+    PeekByte(Address, Address),
+    PeekFloat(Address, Address),
+    PeekInteger(Address, Address),
+    PeekString(Address, Address),
+
+    PokeBoolean(Address, Address),
+    PokeByte(Address, Address),
+    PokeFloat(Address, Address),
+    PokeInteger(Address, Address),
+    PokeString(Address, Address),
+
     Branch(Address, usize),
     Jump(usize),
     Yield,
@@ -500,6 +512,34 @@ impl Instruction {
                 program.push(Self::Sin(expr_address, address).into());
 
                 (Type::Float, address)
+            }
+            Expression::Peek(ty, expr, _) => {
+                let (expr_ty, expr_address) =
+                    Self::compile_expression(address, expr, program, variables)?;
+
+                assert!(expr_address <= address);
+
+                if expr_ty != Type::Integer {
+                    return Err(SyntaxError::from_location(
+                        expr.location(),
+                        format!("{expr_ty} should be Integer"),
+                    ));
+                }
+
+                let ty = ty.unwrap_or(Type::Byte);
+
+                program.push(
+                    match ty {
+                        Type::Boolean => Self::PeekBoolean(expr_address, address),
+                        Type::Byte => Self::PeekByte(expr_address, address),
+                        Type::Float => Self::PeekFloat(expr_address, address),
+                        Type::Integer => Self::PeekInteger(expr_address, address),
+                        Type::String => Self::PeekString(expr_address, address),
+                    }
+                    .into(),
+                );
+
+                (ty, address)
             }
             Expression::KeyDown(expr, _) => {
                 let (expr_ty, expr_address) =
@@ -1953,6 +1993,44 @@ impl Instruction {
                             g_expr_address,
                             b_expr_address,
                         )
+                        .into(),
+                    );
+                }
+                Syntax::Poke(addr_expr, val_expr) => {
+                    let mut address = address;
+
+                    let (addr_expr_ty, addr_expr_address) =
+                        Self::compile_expression(address, addr_expr, &mut program, &variables)?;
+
+                    assert!(addr_expr_address <= address);
+
+                    if addr_expr_ty != Type::Integer {
+                        return Err(SyntaxError::from_location(
+                            addr_expr.location(),
+                            format!(
+                                "Unexpected {} type, must be integer",
+                                addr_expr_ty.to_string().to_ascii_lowercase()
+                            ),
+                        ));
+                    }
+
+                    if addr_expr_address == address {
+                        address += 1;
+                    }
+
+                    let (val_expr_ty, val_expr_address) =
+                        Self::compile_expression(address, val_expr, &mut program, &variables)?;
+
+                    assert!(val_expr_address <= address);
+
+                    program.push(
+                        match val_expr_ty {
+                            Type::Boolean => Self::PokeBoolean(addr_expr_address, val_expr_address),
+                            Type::Byte => Self::PokeByte(addr_expr_address, val_expr_address),
+                            Type::Float => Self::PokeFloat(addr_expr_address, val_expr_address),
+                            Type::Integer => Self::PokeInteger(addr_expr_address, val_expr_address),
+                            Type::String => Self::PokeString(addr_expr_address, val_expr_address),
+                        }
                         .into(),
                     );
                 }
