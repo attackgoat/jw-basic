@@ -258,7 +258,7 @@ PEEK[? | @ | ! | % | $](address)
         someFloat = PEEK!(128)
 
 
-POKE(address, expr)
+POKE address, expr
 
     Writes a value to a specified memory location.
 
@@ -268,8 +268,8 @@ POKE(address, expr)
 
     Examples:
 
-        POKE(420, 255@)
-        POKE(128, 42.0)
+        POKE 420, 255@
+        POKE 128, 42.0
 
 
 PRINT [expr][; expr][, expr]
