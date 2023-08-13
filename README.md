@@ -190,6 +190,44 @@ NEXT [var]
         NEXT
 
 
+FUNCTION name{type}[([var{type}][, var{type}] ... )]
+    [..]
+END FUNCTION
+
+    Declare a function which returns a value. May only be used in the outermost scope, and not
+    within any other block. Has global access to preceeding variables and functions. Function name
+    is used as a variable to return a value.
+
+    name:   The name of the function.
+    type:   Type of data which may be returned or used as an argument:
+                    ? (boolean)
+                    @ (byte)
+                    ! (float)
+                    % (integer)
+                    $ (string)
+    var:    The name of a variable argument.
+
+    Examples:
+
+        FUNCTION areEqual?(lhs$, rhs$)
+            IF lhs = rhs THEN
+                areEqual = TRUE
+            ELSE THEN
+                areEqual = FALSE
+            END IF
+        END FUNCTION
+
+        myGlobal = 0
+
+        FUNCTION changeGlobal%
+            myGlobal = myGlobal + 1
+            changeGlobal = myGlobal
+        END FUNCTION
+
+        PRINT areEqual("Apples", "Oranges")     ' Prints "FALSE"
+        PRINT changeGlobal()                    ' Prints "1"
+
+
 GOTO [label | line number]
 
     Jumps directly to a given labelled or numbered line. Fun at parties.

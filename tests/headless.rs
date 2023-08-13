@@ -229,6 +229,22 @@ fn peek_poke() {
     res.assert_printed((15, 0), (1, 0), "OK7                             ");
 }
 
+#[test]
+fn function() {
+    let res = Headless::execute("function.bas");
+
+    res.assert_printed((15, 0), (0, 0), "FALSE                           ");
+    res.assert_printed((15, 0), (1, 0), "TRUE                            ");
+    res.assert_printed((15, 0), (2, 0), "TRUE                            ");
+    res.assert_printed((15, 0), (3, 0), "5                               ");
+    res.assert_printed((15, 0), (4, 0), "899                             ");
+    res.assert_printed((15, 0), (5, 0), "Hello, world                    ");
+    res.assert_printed((15, 0), (6, 0), "OK1                             ");
+    res.assert_printed((15, 0), (7, 0), "FALSE                           ");
+    res.assert_printed((15, 0), (8, 0), "1                               ");
+    res.assert_printed((15, 0), (9, 0), "OK2                             ");
+}
+
 /// Helper to pick a queue family for submitting device commands.
 fn device_queue_family_index(device: &Device, flags: vk::QueueFlags) -> Option<usize> {
     device

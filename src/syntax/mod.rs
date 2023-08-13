@@ -12,7 +12,7 @@ use {
         branch::alt,
         bytes::complete::take,
         combinator::{map, opt, value, verify},
-        multi::{many0, separated_list0, separated_list1},
+        multi::{many0, many1, separated_list0, separated_list1},
         sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
         IResult,
     },
@@ -76,7 +76,7 @@ token!(dim_token, Dimension);
 token!(else_token, Else);
 token!(end_token, End);
 token!(for_token, For);
-token!(fn_token, Function);
+token!(function_token, Function);
 token!(goto_token, Goto);
 token!(if_token, If);
 token!(key_down_token, KeyDown);
@@ -260,6 +260,7 @@ pub enum Syntax<'a> {
         Option<Expression<'a>>,
         Ast<'a>,
     ),
+    Function(Identifier<'a>, Vec<Identifier<'a>>, Ast<'a>),
     // GetPalette {
     //     color: Expression,
     //     result_r: StackAddress,
@@ -328,6 +329,7 @@ impl<'a> Syntax<'a> {
                 Self::parse_color,
                 Self::parse_dim,
                 Self::parse_for,
+                Self::parse_function,
                 Self::parse_goto,
                 Self::parse_if,
                 Self::parse_line,
@@ -437,6 +439,31 @@ impl<'a> Syntax<'a> {
         ))(tokens)?;
 
         Ok((tokens, Self::For(var, start, end, step, ast)))
+    }
+
+    fn parse_function(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        map(
+            delimited(
+                function_token,
+                separated_pair(
+                    tuple((
+                        Identifier::parse,
+                        map(
+                            opt(delimited(
+                                l_paren_punc,
+                                separated_list1(comma_punc, Identifier::parse),
+                                r_paren_punc,
+                            )),
+                            Option::unwrap_or_default,
+                        ),
+                    )),
+                    many1(end_of_line_punc),
+                    Self::parse,
+                ),
+                tuple((end_token, function_token, opt(end_of_line_punc))),
+            ),
+            |((id, args), body)| Self::Function(id, args, body),
+        )(tokens)
     }
 
     fn parse_goto(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
