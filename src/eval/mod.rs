@@ -402,8 +402,8 @@ impl Interpreter {
     }
 
     #[allow(dead_code)]
-    pub fn heap_mut(&self) -> &[u8] {
-        &self.heap
+    pub fn heap_mut(&mut self) -> &mut [u8] {
+        &mut self.heap
     }
 
     pub fn line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: u8) {
