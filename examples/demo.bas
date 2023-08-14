@@ -17,5 +17,5 @@ LINE (0, 13) - (159, 21), 4@
 
 ' Some colorful boxes
 FOR c = 25 TO 95 STEP 3
-    RECTANGLE (c - 5, c - 3) - (159, c), CBYTE(c), TRUE
+    RECTANGLE (c - 5, c - 3) - (159, c), BYTE(c), TRUE
 NEXT

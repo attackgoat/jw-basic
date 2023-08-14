@@ -53,7 +53,7 @@ LINE (0, 13) - (159, 21), 4@
 
 ' Some colorful boxes
 FOR c = 25 TO 95 STEP 3
-    RECTANGLE (c - 5, c - 3) - (159, c), CBYTE(c), TRUE
+    RECTANGLE (c - 5, c - 3) - (159, c), BYTE(c), TRUE
 NEXT
 
 ```
@@ -392,6 +392,9 @@ END SUB
     Declare a subroutine. May only be used in the outermost scope, and not within any other block.
     Has global access to preceeding variables and functions. May be called optionally using CALL.
 
+    When calling, if you omit the CALL keyword, also omit the optional parentheses around the
+    arguments.
+
     name:   The name of the sub.
     var:    The name of a variable argument.
     type:   Type of data which may be used as an argument:
@@ -407,7 +410,7 @@ END SUB
             PRINT "Hello", name$ + "!"
         END SUB
 
-        PrintName("John")
+        PrintName "John"
         CALL PrintName("Keli")
 
 

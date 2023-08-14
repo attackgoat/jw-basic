@@ -425,19 +425,27 @@ impl<'a> Syntax<'a> {
 
     fn parse_call(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
         map(
-            delimited(
-                opt(call_token),
-                pair(
-                    Identifier::parse,
-                    map(
-                        opt(delimited(
-                            l_paren_punc,
-                            separated_list0(comma_punc, Expression::parse),
-                            r_paren_punc,
-                        )),
-                        Option::unwrap_or_default,
+            terminated(
+                alt((
+                    preceded(
+                        call_token,
+                        pair(
+                            Identifier::parse,
+                            map(
+                                opt(delimited(
+                                    l_paren_punc,
+                                    separated_list0(comma_punc, Expression::parse),
+                                    r_paren_punc,
+                                )),
+                                Option::unwrap_or_default,
+                            ),
+                        ),
                     ),
-                ),
+                    pair(
+                        Identifier::parse,
+                        separated_list0(comma_punc, Expression::parse),
+                    ),
+                )),
                 opt(end_of_line_punc),
             ),
             |(sub, args)| Self::Call(sub, args),

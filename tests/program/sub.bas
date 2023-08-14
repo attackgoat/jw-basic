@@ -7,7 +7,7 @@ SUB mySub2()
 END SUB
 
 SUB mySub3 ( )
-    mySub()
+    mySub
     CALL mySub
     mySub2
 END SUB
@@ -21,8 +21,8 @@ SUB mySub5(lhs$, rhs$)
 END SUB
 
 mySub3
-mySub4("C")
+mySub4 "C"
 CALL mySub4 ("D")
-mySub5 ( "<", ">")
+mySub5 "<", ">"
 
 PRINT "OK"

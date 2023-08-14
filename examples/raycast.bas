@@ -130,7 +130,7 @@ WHILE TRUE
     RECTANGLE (0, ScreenHeight / 2 + 1) - (ScreenWidth - 1, ScreenHeight - 1), 20@, TRUE
 
     FOR x = 0 TO ScreenWidth - 1
-        cameraX = 2.0 * CFLOAT(x) / CFLOAT(ScreenWidth) - 1.0
+        cameraX = 2.0 * FLOAT(x) / FLOAT(ScreenWidth) - 1.0
 
         rayDirX = dirX + planeX * cameraX
         rayDirY = dirY + planeY * cameraX
@@ -149,24 +149,24 @@ WHILE TRUE
             deltaDistY = ABS(1.0 / rayDirY)
         END IF
 
-        mapX = CINT(posX)
-        mapY = CINT(posY)
+        mapX = INT(posX)
+        mapY = INT(posY)
 
         DIM stepX, stepY, sideDistX!, sideDistY!
         IF rayDirX < 0.0 THEN
             stepX = -1
-            sideDistX = (posX - CFLOAT(mapX)) * deltaDistX
+            sideDistX = (posX - FLOAT(mapX)) * deltaDistX
         ELSE THEN
             stepX = 1
-            sideDistX = (CFLOAT(mapX) + 1.0 - posX) * deltaDistX
+            sideDistX = (FLOAT(mapX) + 1.0 - posX) * deltaDistX
         END IF
 
         IF rayDirY < 0.0 THEN
             stepY = -1
-            sideDistY = (posY - CFLOAT(mapY)) * deltaDistY
+            sideDistY = (posY - FLOAT(mapY)) * deltaDistY
         ELSE THEN
             stepY = 1
-            sideDistY = (CFLOAT(mapY) + 1.0 - posY) * deltaDistY
+            sideDistY = (FLOAT(mapY) + 1.0 - posY) * deltaDistY
         END IF
 
         DIM side?, hitColor@
@@ -199,7 +199,7 @@ WHILE TRUE
             perpWallDist = sideDistY - deltaDistY
         END IF
 
-        lineHeight = CINT(CFLOAT(ScreenHeight) / perpWallDist)
+        lineHeight = INT(FLOAT(ScreenHeight) / perpWallDist)
         drawStart = -lineHeight / 2 + ScreenHeight / 2
 
         IF drawStart < 0 THEN
@@ -222,8 +222,8 @@ WHILE TRUE
     RECTANGLE (0, 0) - (50, 6), &HFF@, TRUE
 
     endTime = TIMER()
-    frameTime! = CFLOAT(endTime - startTime) / 1000000.0
-    fps = CINT(1.0 / frameTime)
+    frameTime! = FLOAT(endTime - startTime) / 1000000.0
+    fps = INT(1.0 / frameTime)
 
     LOCATE 0, 0
     PRINT "FPS:", fps
@@ -235,24 +235,24 @@ WHILE TRUE
 
     IF KEYDOWN(KeyCodeUp) THEN
         newX = posX + dirX * moveSpeed
-        IF map(CINT(newX), CINT(posY)) = 0@ THEN
+        IF map(INT(newX), INT(posY)) = 0@ THEN
             posX = newX
         END IF
 
         newY = posY + dirY * moveSpeed
-        IF map(CINT(posX), CINT(newY)) = 0@ THEN
+        IF map(INT(posX), INT(newY)) = 0@ THEN
             posY = newY
         END IF
     END IF
 
     IF KEYDOWN(KeyCodeDown) THEN
         newX = posX - dirX * moveSpeed
-        IF map(CINT(newX), CINT(posY)) = 0@ THEN
+        IF map(INT(newX), INT(posY)) = 0@ THEN
             posX = newX
         END IF
 
         newY = posY - dirY * moveSpeed
-        IF map(CINT(posX), CINT(newY)) = 0@ THEN
+        IF map(INT(posX), INT(newY)) = 0@ THEN
             posY = newY
         END IF
     END IF

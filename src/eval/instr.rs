@@ -1868,13 +1868,6 @@ impl Instruction {
                         ));
                     }
 
-                    if subs.contains_key(var.name) {
-                        return Err(SyntaxError::from_location(
-                            var.location,
-                            format!("Cannot redefine sub `{}`.", var.name),
-                        ));
-                    }
-
                     if vars.contains_key(var.name) {
                         return Err(SyntaxError::from_location(
                             var.location,
@@ -3114,13 +3107,6 @@ impl Instruction {
                         return Err(SyntaxError::from_location(
                             id.location,
                             format!("Cannot define sub `{}` in this scope.", id.name),
-                        ));
-                    }
-
-                    if fns.contains_key(id.name) {
-                        return Err(SyntaxError::from_location(
-                            id.location,
-                            format!("Cannot redefine function `{}`.", id.name),
                         ));
                     }
 
