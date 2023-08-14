@@ -340,6 +340,7 @@ pub enum Syntax<'a> {
     ),
     Poke(Expression<'a>, Expression<'a>),
     Print(Vec<Print<'a>>),
+    Pset(Expression<'a>, Expression<'a>, Expression<'a>),
     Put(
         (Expression<'a>, Expression<'a>),
         (Expression<'a>, Expression<'a>),
@@ -396,7 +397,7 @@ impl<'a> Syntax<'a> {
                 Self::parse_while,
                 Self::parse_yield,
                 Self::parse_label,
-                Self::parse_call,
+                alt((Self::parse_call, Self::parse_pset)),
             )),
             many0(end_of_line_punc),
         ))(tokens)
@@ -691,6 +692,25 @@ impl<'a> Syntax<'a> {
         map(
             delimited(print_token, many0(Print::parse), opt(end_of_line_punc)),
             Self::Print,
+        )(tokens)
+    }
+
+    fn parse_pset(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        map(
+            delimited(
+                pset_op,
+                separated_pair(
+                    delimited(
+                        l_paren_punc,
+                        separated_pair(Expression::parse, comma_punc, Expression::parse),
+                        r_paren_punc,
+                    ),
+                    comma_punc,
+                    Expression::parse,
+                ),
+                opt(end_of_line_punc),
+            ),
+            |((x, y), color)| Self::Pset(x, y, color),
         )(tokens)
     }
 

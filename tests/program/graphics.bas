@@ -15,3 +15,7 @@ YIELD
 PALETTE 4@, &HFF@, &HFF@, &HFF@
 PALETTE 1@, &HFF@, 0@, 0@
 PALETTE 2@, 0@, 0@, &HFF@
+
+PSET (50, 0), 15@
+PSET (50, 2), 15@
+PSET (50, 2), 26@

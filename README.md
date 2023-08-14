@@ -357,6 +357,14 @@ PRINT [expr][; expr][, expr]
         PRINT "Hello " + name$ + ". Nice to meet you!", "Welcome to day ", dayOfWeek%; "!"
 
 
+PSET (x, y), color
+
+    Draw a specified point on the screen.
+
+    x, y:   Any expression which evaluates to an integer.
+    color:  Any expression which evaluates to a byte.
+
+
 RECTANGLE [(x0, y0) -] (x1, y1), color[, filled]
 
     Draws a rectangle between two points.

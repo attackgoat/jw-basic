@@ -114,6 +114,7 @@ pub enum Instruction {
     Palette(Address, Address, Address, Address),
     PrintString(Address),
     Rectangle(Address, Address, Address, Address, Address, Address),
+    SetPixel(Address, Address, Address),
     Timer(Address),
 
     GetGraphic(Address, Address, Address, Address, Address, Address),
@@ -2643,6 +2644,71 @@ impl Instruction {
                     program.push(Instruction::PrintString(str_address).into());
 
                     address = str_address;
+                }
+                Syntax::Pset(x_expr, y_expr, color_expr) => {
+                    let mut address = address;
+                    let (x_expr_ty, x_expr_address) =
+                        Self::compile_expression(address, x_expr, &mut program, fns, subs, &vars)?;
+
+                    assert!(x_expr_address <= address);
+
+                    if x_expr_ty != Type::Integer {
+                        return Err(SyntaxError::from_location(
+                            x_expr.location(),
+                            format!(
+                                "Unexpected {} type, must be integer",
+                                x_expr_ty.to_string().to_ascii_lowercase()
+                            ),
+                        ));
+                    }
+
+                    if x_expr_address == address {
+                        address += 1;
+                    }
+
+                    let (y_expr_ty, y_expr_address) =
+                        Self::compile_expression(address, y_expr, &mut program, fns, subs, &vars)?;
+
+                    assert!(y_expr_address <= address);
+
+                    if y_expr_ty != Type::Integer {
+                        return Err(SyntaxError::from_location(
+                            y_expr.location(),
+                            format!(
+                                "Unexpected {} type, must be integer",
+                                y_expr_ty.to_string().to_ascii_lowercase()
+                            ),
+                        ));
+                    }
+
+                    if y_expr_address == address {
+                        address += 1;
+                    }
+
+                    let (color_expr_ty, color_expr_address) = Self::compile_expression(
+                        address,
+                        color_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
+
+                    assert!(color_expr_address <= address);
+
+                    if color_expr_ty != Type::Byte {
+                        return Err(SyntaxError::from_location(
+                            color_expr.location(),
+                            format!(
+                                "Unexpected {} type, must be byte",
+                                color_expr_ty.to_string().to_ascii_lowercase()
+                            ),
+                        ));
+                    }
+
+                    program.push(
+                        Self::SetPixel(x_expr_address, y_expr_address, color_expr_address).into(),
+                    );
                 }
                 Syntax::Put(
                     (x_expr, y_expr),

@@ -1140,6 +1140,13 @@ impl Interpreter {
                         self.stack[is_filled].boolean(),
                     );
                 }
+                &Instruction::SetPixel(x, y, color) => {
+                    self.set_pixel(
+                        self.stack[x].integer(),
+                        self.stack[y].integer(),
+                        self.stack[color].byte(),
+                    );
+                }
                 &Instruction::PrintString(addr) => {
                     self.print(self.stack[addr].string().to_owned().as_str());
                 }
