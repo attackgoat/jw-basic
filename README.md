@@ -366,6 +366,32 @@ RECTANGLE [(x0, y0) -] (x1, y1), color[, filled]
     filled:         Any expression which evaluates to a boolean.
 
 
+SUB name[([var{type}][, var{type}] ... )]
+    [..]
+END SUB
+
+    Declare a subroutine. May only be used in the outermost scope, and not within any other block.
+    Has global access to preceeding variables and functions. May be called optionally using CALL.
+
+    name:   The name of the sub.
+    var:    The name of a variable argument.
+    type:   Type of data which may be used as an argument:
+                    ? (boolean)
+                    @ (byte)
+                    ! (float)
+                    % (integer)
+                    $ (string)
+
+    Examples:
+
+        SUB PrintName(name$)
+            PRINT "Hello", name$ + "!"
+        END SUB
+
+        PrintName("John")
+        CALL PrintName("Keli")
+
+
 TIMER[%]()
 
     Returns the number of microseconds since the program began execution.

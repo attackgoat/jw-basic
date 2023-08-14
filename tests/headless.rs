@@ -100,6 +100,22 @@ fn for_next() {
 }
 
 #[test]
+fn function() {
+    let res = Headless::execute("function.bas");
+
+    res.assert_printed((15, 0), (0, 0), "FALSE                           ");
+    res.assert_printed((15, 0), (1, 0), "TRUE                            ");
+    res.assert_printed((15, 0), (2, 0), "TRUE                            ");
+    res.assert_printed((15, 0), (3, 0), "5                               ");
+    res.assert_printed((15, 0), (4, 0), "899                             ");
+    res.assert_printed((15, 0), (5, 0), "Hello, world                    ");
+    res.assert_printed((15, 0), (6, 0), "OK1                             ");
+    res.assert_printed((15, 0), (7, 0), "FALSE                           ");
+    res.assert_printed((15, 0), (8, 0), "1                               ");
+    res.assert_printed((15, 0), (9, 0), "OK2                             ");
+}
+
+#[test]
 fn get_put() {
     let mut res = Headless::execute("get_put.bas");
 
@@ -143,17 +159,6 @@ fn graphics() {
 }
 
 #[test]
-fn locate() {
-    let res = Headless::execute("locate.bas");
-
-    res.assert_printed((15, 0), (0, 0), "HELLO");
-    res.assert_printed((15, 0), (0, 30), "10");
-    res.assert_printed((15, 0), (7, 14), "BASIC");
-    res.assert_printed((15, 0), (15, 0), "GOODBYE");
-    res.assert_printed((15, 0), (15, 30), "1");
-}
-
-#[test]
 fn if_then() {
     let res = Headless::execute("if_then.bas");
 
@@ -164,13 +169,14 @@ fn if_then() {
 }
 
 #[test]
-fn while_wend() {
-    let res = Headless::execute("while_wend.bas");
+fn locate() {
+    let res = Headless::execute("locate.bas");
 
-    res.assert_printed((15, 0), (0, 0), "1");
-    res.assert_printed((15, 0), (1, 0), "2");
-    res.assert_printed((15, 0), (2, 0), "1");
-    res.assert_printed((15, 0), (3, 0), "0");
+    res.assert_printed((15, 0), (0, 0), "HELLO");
+    res.assert_printed((15, 0), (0, 30), "10");
+    res.assert_printed((15, 0), (7, 14), "BASIC");
+    res.assert_printed((15, 0), (15, 0), "GOODBYE");
+    res.assert_printed((15, 0), (15, 30), "1");
 }
 
 #[test]
@@ -245,19 +251,26 @@ fn peek_poke() {
 }
 
 #[test]
-fn function() {
-    let res = Headless::execute("function.bas");
+fn sub() {
+    let res = Headless::execute("sub.bas");
 
-    res.assert_printed((15, 0), (0, 0), "FALSE                           ");
-    res.assert_printed((15, 0), (1, 0), "TRUE                            ");
-    res.assert_printed((15, 0), (2, 0), "TRUE                            ");
-    res.assert_printed((15, 0), (3, 0), "5                               ");
-    res.assert_printed((15, 0), (4, 0), "899                             ");
-    res.assert_printed((15, 0), (5, 0), "Hello, world                    ");
-    res.assert_printed((15, 0), (6, 0), "OK1                             ");
-    res.assert_printed((15, 0), (7, 0), "FALSE                           ");
-    res.assert_printed((15, 0), (8, 0), "1                               ");
-    res.assert_printed((15, 0), (9, 0), "OK2                             ");
+    res.assert_printed((15, 0), (0, 0), "A                               ");
+    res.assert_printed((15, 0), (1, 0), "A                               ");
+    res.assert_printed((15, 0), (2, 0), "B                               ");
+    res.assert_printed((15, 0), (3, 0), "C                               ");
+    res.assert_printed((15, 0), (4, 0), "D                               ");
+    res.assert_printed((15, 0), (5, 0), "< >                             ");
+    res.assert_printed((15, 0), (6, 0), "OK                              ");
+}
+
+#[test]
+fn while_wend() {
+    let res = Headless::execute("while_wend.bas");
+
+    res.assert_printed((15, 0), (0, 0), "1");
+    res.assert_printed((15, 0), (1, 0), "2");
+    res.assert_printed((15, 0), (2, 0), "1");
+    res.assert_printed((15, 0), (3, 0), "0");
 }
 
 /// Helper to pick a queue family for submitting device commands.

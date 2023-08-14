@@ -2,7 +2,7 @@ use {
     crate::{
         syntax::{
             Bitwise, Expression, Identifier, Infix, Label, Literal, Prefix, Print, PutAction,
-            Relation, Syntax, SyntaxError, Type,
+            Relation, Syntax, SyntaxError, Type, Variable,
         },
         token::{location_string, Token, Tokens},
     },
@@ -12,6 +12,14 @@ use {
 };
 
 pub type Address = usize;
+
+#[derive(Clone)]
+struct FunctionScope<'a> {
+    ty: Type,
+    args: &'a [Variable<'a>],
+    global_vars: HashMap<&'a str, (Type, Address)>,
+    body_ast: &'a [Syntax<'a>],
+}
 
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
@@ -209,8 +217,14 @@ impl Instruction {
         }
 
         // Finally, compile the syntax into executable instructions
-        let instrs =
-            Self::compile_scope(&syntax, 0, 0, &mut HashMap::default(), HashMap::default())?;
+        let instrs = Self::compile_scope(
+            &syntax,
+            0,
+            0,
+            &mut HashMap::default(),
+            &mut HashMap::default(),
+            HashMap::default(),
+        )?;
 
         let instrs = instrs
             .into_iter()
@@ -231,6 +245,7 @@ impl Instruction {
         expr: &Expression<'a>,
         program: &mut Vec<ScopeInstruction<'a>>,
         fns: &HashMap<&'a str, FunctionScope<'a>>,
+        subs: &HashMap<&'a str, SubScope<'a>>,
         vars: &HashMap<&str, (Type, Address)>,
     ) -> Result<(Type, Address), SyntaxError> {
         Ok(match expr {
@@ -252,9 +267,9 @@ impl Instruction {
             Expression::Tuple(_exprs, _) => {
                 todo!();
             }
-            Expression::Variable(id) => vars[id.name],
-            Expression::Function(id, arg_exprs, location) => {
-                if let Some((var_ty, var_address)) = vars.get(id.name).copied() {
+            Expression::Variable(var) => vars[var.name],
+            Expression::Function(var, arg_exprs, location) => {
+                if let Some((var_ty, var_address)) = vars.get(var.name).copied() {
                     let mut index_address = address + 1;
 
                     // This is an array access - all args must be integers
@@ -266,6 +281,7 @@ impl Instruction {
                                 index_expr,
                                 program,
                                 fns,
+                                subs,
                                 vars,
                             )?;
 
@@ -315,21 +331,21 @@ impl Instruction {
                     }
 
                     (var_ty, address)
-                } else if let Some(func) = fns.get(id.name) {
-                    if arg_exprs.len() != func.args.len() {
+                } else if let Some(scope) = fns.get(var.name) {
+                    if arg_exprs.len() != scope.args.len() {
                         return Err(SyntaxError::from_location(
                             *location,
                             format!(
                                 "`{}` expects {} arguments but {} were provided.",
-                                id.name,
-                                func.args.len(),
+                                var.name,
+                                scope.args.len(),
                                 arg_exprs.len()
                             ),
                         ));
                     }
 
                     program.push(
-                        match func.ty {
+                        match scope.ty {
                             Type::Boolean => Self::WriteBoolean(false, address),
                             Type::Byte => Self::WriteByte(0, address),
                             Type::Float => Self::WriteFloat(0.0, address),
@@ -339,57 +355,68 @@ impl Instruction {
                         .into(),
                     );
 
-                    let mut fn_local_vars = func.global_vars.clone();
-                    fn_local_vars.insert(id.name, (func.ty, address));
+                    let mut fns = fns.clone();
+                    fns.remove(var.name);
+
+                    let mut local_vars = scope.global_vars.clone();
+                    local_vars.insert(var.name, (scope.ty, address));
 
                     let mut next_address = address + 1;
-                    for (arg, expr) in func.args.iter().zip(arg_exprs) {
+                    for (arg, expr) in scope.args.iter().zip(arg_exprs) {
                         assert!(arg.ty.is_some());
 
                         let arg_ty = arg.ty.unwrap();
-                        let (expr_ty, expr_address) =
-                            Self::compile_expression(next_address, expr, program, fns, vars)?;
+                        let (expr_ty, expr_address) = Self::compile_expression(
+                            next_address,
+                            expr,
+                            program,
+                            &fns,
+                            subs,
+                            vars,
+                        )?;
+
+                        assert!(expr_address <= next_address);
 
                         if arg_ty != expr_ty {
                             return Err(SyntaxError::from_location(
                                     arg.location,
-                                    format!("`{}` expects a {} expression for argument `{}` but a {} was provided.", id.name, arg_ty, arg.name, expr_ty),
+                                    format!("`{}` expects a {} expression for argument `{}` but a {} was provided.", var.name, arg_ty, arg.name, expr_ty),
                                 ));
                         }
 
-                        fn_local_vars.insert(arg.name, (arg_ty, expr_address));
+                        local_vars.insert(arg.name, (expr_ty, expr_address));
 
                         if expr_address == next_address {
                             next_address += 1;
                         }
                     }
 
-                    let mut fns = fns.clone();
-                    fns.remove(id.name);
+                    let mut subs = subs.clone();
 
                     program.extend(
                         Self::compile_scope(
-                            func.body_ast,
+                            scope.body_ast,
                             program.len(),
                             next_address,
                             &mut fns,
-                            fn_local_vars,
+                            &mut subs,
+                            local_vars,
                         )?
                         .into_iter()
                         .map(Into::into),
                     );
 
-                    (func.ty, address)
+                    (scope.ty, address)
                 } else {
                     return Err(SyntaxError::from_location(
                         *location,
-                        format!("`{}` is undefined.", id.name),
+                        format!("`{}` is undefined.", var.name),
                     ));
                 }
             }
             Expression::ConvertBoolean(expr, _) => {
                 let (expr_ty, expr_address) =
-                    Self::compile_expression(address, expr, program, fns, vars)?;
+                    Self::compile_expression(address, expr, program, fns, subs, vars)?;
 
                 assert!(expr_address <= address);
 
@@ -417,7 +444,7 @@ impl Instruction {
             }
             Expression::ConvertByte(expr, _) => {
                 let (expr_ty, expr_address) =
-                    Self::compile_expression(address, expr, program, fns, vars)?;
+                    Self::compile_expression(address, expr, program, fns, subs, vars)?;
 
                 assert!(expr_address <= address);
 
@@ -445,7 +472,7 @@ impl Instruction {
             }
             Expression::ConvertFloat(expr, _) => {
                 let (expr_ty, expr_address) =
-                    Self::compile_expression(address, expr, program, fns, vars)?;
+                    Self::compile_expression(address, expr, program, fns, subs, vars)?;
 
                 assert!(expr_address <= address);
 
@@ -473,7 +500,7 @@ impl Instruction {
             }
             Expression::ConvertInteger(expr, _) => {
                 let (expr_ty, expr_address) =
-                    Self::compile_expression(address, expr, program, fns, vars)?;
+                    Self::compile_expression(address, expr, program, fns, subs, vars)?;
 
                 assert!(expr_address <= address);
 
@@ -501,7 +528,7 @@ impl Instruction {
             }
             Expression::ConvertString(expr, _) => {
                 let (expr_ty, expr_address) =
-                    Self::compile_expression(address, expr, program, fns, vars)?;
+                    Self::compile_expression(address, expr, program, fns, subs, vars)?;
 
                 assert!(expr_address <= address);
 
@@ -529,7 +556,7 @@ impl Instruction {
             }
             Expression::Abs(ty, expr, _) => {
                 let (expr_ty, expr_address) =
-                    Self::compile_expression(address, expr, program, fns, vars)?;
+                    Self::compile_expression(address, expr, program, fns, subs, vars)?;
 
                 assert!(expr_address <= address);
 
@@ -559,7 +586,7 @@ impl Instruction {
             }
             Expression::Cos(expr, _) => {
                 let (expr_ty, expr_address) =
-                    Self::compile_expression(address, expr, program, fns, vars)?;
+                    Self::compile_expression(address, expr, program, fns, subs, vars)?;
 
                 assert!(expr_address <= address);
 
@@ -576,7 +603,7 @@ impl Instruction {
             }
             Expression::Sin(expr, _) => {
                 let (expr_ty, expr_address) =
-                    Self::compile_expression(address, expr, program, fns, vars)?;
+                    Self::compile_expression(address, expr, program, fns, subs, vars)?;
 
                 assert!(expr_address <= address);
 
@@ -593,7 +620,7 @@ impl Instruction {
             }
             Expression::Peek(ty, expr, _) => {
                 let (expr_ty, expr_address) =
-                    Self::compile_expression(address, expr, program, fns, vars)?;
+                    Self::compile_expression(address, expr, program, fns, subs, vars)?;
 
                 assert!(expr_address <= address);
 
@@ -621,7 +648,7 @@ impl Instruction {
             }
             Expression::KeyDown(expr, _) => {
                 let (expr_ty, expr_address) =
-                    Self::compile_expression(address, expr, program, fns, vars)?;
+                    Self::compile_expression(address, expr, program, fns, subs, vars)?;
 
                 assert!(expr_address <= address);
 
@@ -642,7 +669,7 @@ impl Instruction {
             }
             Expression::Prefix(prefix, expr, _) => {
                 let (ty, expr_address) =
-                    Self::compile_expression(address, expr, program, fns, vars)?;
+                    Self::compile_expression(address, expr, program, fns, subs, vars)?;
 
                 assert!(expr_address <= address);
 
@@ -696,7 +723,7 @@ impl Instruction {
             }
             Expression::Infix(infix, lhs, rhs, _) => {
                 let (lhs_expr_ty, lhs_expr_address) =
-                    Self::compile_expression(address, lhs, program, fns, vars)?;
+                    Self::compile_expression(address, lhs, program, fns, subs, vars)?;
 
                 assert!(lhs_expr_address <= address);
 
@@ -707,7 +734,7 @@ impl Instruction {
                 };
 
                 let (rhs_expr_ty, rhs_expr_address) =
-                    Self::compile_expression(rhs_address, rhs, program, fns, vars)?;
+                    Self::compile_expression(rhs_address, rhs, program, fns, subs, vars)?;
 
                 assert!(rhs_expr_address <= rhs_address);
 
@@ -1154,6 +1181,7 @@ impl Instruction {
         program_offset: usize,
         mut address: Address,
         fns: &mut HashMap<&'a str, FunctionScope<'a>>,
+        subs: &mut HashMap<&'a str, SubScope<'a>>,
         mut vars: HashMap<&'a str, (Type, Address)>,
     ) -> Result<Vec<ScopeInstruction<'a>>, SyntaxError> {
         #[derive(Clone, Copy, Eq, Hash, PartialEq)]
@@ -1165,7 +1193,7 @@ impl Instruction {
         impl<'a> From<Label<'a>> for UnlocatedLabel<'a> {
             fn from(label: Label<'a>) -> Self {
                 match label {
-                    Label::Name(name, _) => UnlocatedLabel::Name(name),
+                    Label::Name(Identifier { name, .. }) => UnlocatedLabel::Name(name),
                     Label::Number(number, _) => UnlocatedLabel::Number(number),
                 }
             }
@@ -1179,7 +1207,7 @@ impl Instruction {
             match syntax {
                 Syntax::Assign(var, index_exprs, expr) => {
                     let (expr_ty, expr_address) =
-                        Self::compile_expression(address, expr, &mut program, fns, &vars)?;
+                        Self::compile_expression(address, expr, &mut program, fns, subs, &vars)?;
 
                     assert!(
                         expr_address <= address,
@@ -1232,6 +1260,7 @@ impl Instruction {
                                     index_expr,
                                     &mut program,
                                     fns,
+                                    subs,
                                     &vars,
                                 )?;
 
@@ -1289,6 +1318,71 @@ impl Instruction {
                 Syntax::ClearScreen => {
                     program.push(Instruction::ClearScreen.into());
                 }
+                Syntax::Call(sub, arg_exprs) => {
+                    let scope = subs.get(sub.name).ok_or(SyntaxError::from_location(
+                        sub.location,
+                        format!("`{}` is undefined.", sub.name),
+                    ))?;
+
+                    if arg_exprs.len() != scope.args.len() {
+                        return Err(SyntaxError::from_location(
+                            sub.location,
+                            format!(
+                                "`{}` expects {} arguments but {} were provided.",
+                                sub.name,
+                                scope.args.len(),
+                                arg_exprs.len()
+                            ),
+                        ));
+                    }
+
+                    let mut subs = subs.clone();
+                    subs.remove(sub.name);
+
+                    let mut address = address;
+                    let mut local_vars = scope.global_vars.clone();
+                    for (arg, expr) in scope.args.iter().zip(arg_exprs) {
+                        assert!(arg.ty.is_some());
+
+                        let arg_ty = arg.ty.unwrap();
+                        let (expr_ty, expr_address) = Self::compile_expression(
+                            address,
+                            expr,
+                            &mut program,
+                            fns,
+                            &subs,
+                            &vars,
+                        )?;
+
+                        assert!(expr_address <= address);
+
+                        if arg_ty != expr_ty {
+                            return Err(SyntaxError::from_location(
+                                    arg.location,
+                                    format!("`{}` expects a {} expression for argument `{}` but a {} was provided.", sub.name, arg_ty, arg.name, expr_ty),
+                                ));
+                        }
+
+                        local_vars.insert(arg.name, (expr_ty, expr_address));
+
+                        if expr_address == address {
+                            address += 1;
+                        }
+                    }
+
+                    program.extend(
+                        Self::compile_scope(
+                            scope.body_ast,
+                            program.len() + program_offset,
+                            address,
+                            fns,
+                            &mut subs,
+                            local_vars,
+                        )?
+                        .into_iter()
+                        .map(Into::into),
+                    );
+                }
                 Syntax::Color(foreground_expr, background_expr) => {
                     let (foreground_expr_ty, mut foreground_expr_address) =
                         Self::compile_expression(
@@ -1296,6 +1390,7 @@ impl Instruction {
                             foreground_expr,
                             &mut program,
                             fns,
+                            subs,
                             &vars,
                         )?;
 
@@ -1338,6 +1433,7 @@ impl Instruction {
                                 background_expr,
                                 &mut program,
                                 fns,
+                                subs,
                                 &vars,
                             )?;
 
@@ -1398,6 +1494,7 @@ impl Instruction {
                                                         start_expr,
                                                         &mut program,
                                                         fns,
+                                                        subs,
                                                         &vars,
                                                     )?;
 
@@ -1426,6 +1523,7 @@ impl Instruction {
                                                 end_expr,
                                                 &mut program,
                                                 fns,
+                                                subs,
                                                 &vars,
                                             )?;
 
@@ -1449,8 +1547,14 @@ impl Instruction {
                             .transpose()?;
 
                         let ty = if let Some(expr) = expr {
-                            let (expr_ty, expr_address) =
-                                Self::compile_expression(address, expr, &mut program, fns, &vars)?;
+                            let (expr_ty, expr_address) = Self::compile_expression(
+                                address,
+                                expr,
+                                &mut program,
+                                fns,
+                                subs,
+                                &vars,
+                            )?;
 
                             assert!(expr_address <= address);
 
@@ -1516,8 +1620,14 @@ impl Instruction {
                     }
                 }
                 Syntax::For(var, start_expr, end_expr, step_expr, body_ast) => {
-                    let (start_expr_ty, start_expr_address) =
-                        Self::compile_expression(address, start_expr, &mut program, fns, &vars)?;
+                    let (start_expr_ty, start_expr_address) = Self::compile_expression(
+                        address,
+                        start_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(start_expr_address <= address);
 
@@ -1537,8 +1647,14 @@ impl Instruction {
                         address
                     };
 
-                    let (end_expr_ty, end_expr_address) =
-                        Self::compile_expression(address, end_expr, &mut program, fns, &vars)?;
+                    let (end_expr_ty, end_expr_address) = Self::compile_expression(
+                        address,
+                        end_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(end_expr_address <= address);
 
@@ -1560,8 +1676,14 @@ impl Instruction {
                     };
 
                     let step_expr_address = if let Some(step_expr) = step_expr {
-                        let (step_expr_ty, step_expr_address) =
-                            Self::compile_expression(address, step_expr, &mut program, fns, &vars)?;
+                        let (step_expr_ty, step_expr_address) = Self::compile_expression(
+                            address,
+                            step_expr,
+                            &mut program,
+                            fns,
+                            subs,
+                            &vars,
+                        )?;
 
                         assert!(step_expr_address <= address);
 
@@ -1609,8 +1731,14 @@ impl Instruction {
                     }
 
                     let body_offset = program.len() + program_offset;
-                    let body =
-                        Self::compile_scope(body_ast, body_offset, address, fns, vars.clone())?;
+                    let body = Self::compile_scope(
+                        body_ast,
+                        body_offset,
+                        address,
+                        fns,
+                        subs,
+                        vars.clone(),
+                    )?;
                     program.extend(body.into_iter().map(Into::into));
 
                     match start_expr_ty {
@@ -1726,32 +1854,32 @@ impl Instruction {
                         _ => unreachable!(),
                     }
                 }
-                Syntax::Function(id, args, body_ast) => {
+                Syntax::Function(var, args, body_ast) => {
                     if program_offset != 0 {
                         return Err(SyntaxError::from_location(
-                            id.location,
-                            format!("Cannot define function `{}` in this scope.", id.name),
+                            var.location,
+                            format!("Cannot define function `{}` in this scope.", var.name),
                         ));
                     }
 
-                    if fns.contains_key(id.name) {
+                    if subs.contains_key(var.name) {
                         return Err(SyntaxError::from_location(
-                            id.location,
-                            format!("Cannot redefine function `{}`.", id.name),
+                            var.location,
+                            format!("Cannot redefine sub `{}`.", var.name),
                         ));
                     }
 
-                    if vars.contains_key(id.name) {
+                    if vars.contains_key(var.name) {
                         return Err(SyntaxError::from_location(
-                            id.location,
-                            format!("Cannot redefine variable `{}` as function.", id.name),
+                            var.location,
+                            format!("Cannot redefine variable `{}` as function.", var.name),
                         ));
                     }
 
-                    if id.ty.is_none() {
+                    if var.ty.is_none() {
                         return Err(SyntaxError::from_location(
-                            id.location,
-                            format!("Function `{}` must declare a return type.", id.name),
+                            var.location,
+                            format!("Function `{}` must declare a return type.", var.name),
                         ));
                     }
 
@@ -1764,16 +1892,23 @@ impl Instruction {
                         }
                     }
 
-                    let fn_ty = id.ty.unwrap();
-                    fns.insert(
-                        id.name,
-                        FunctionScope {
-                            ty: fn_ty,
-                            args,
-                            global_vars: vars.clone(),
-                            body_ast,
-                        },
-                    );
+                    if fns
+                        .insert(
+                            var.name,
+                            FunctionScope {
+                                ty: var.ty.unwrap(),
+                                args,
+                                global_vars: vars.clone(),
+                                body_ast,
+                            },
+                        )
+                        .is_some()
+                    {
+                        return Err(SyntaxError::from_location(
+                            var.location,
+                            format!("Cannot redefine function `{}`.", var.name),
+                        ));
+                    }
                 }
                 Syntax::Get(
                     (from_x_expr, from_y_expr),
@@ -1781,8 +1916,14 @@ impl Instruction {
                     var,
                     var_index_expr,
                 ) => {
-                    let (from_x_expr_ty, from_x_expr_address) =
-                        Self::compile_expression(address, from_x_expr, &mut program, fns, &vars)?;
+                    let (from_x_expr_ty, from_x_expr_address) = Self::compile_expression(
+                        address,
+                        from_x_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(from_x_expr_address <= address);
 
@@ -1802,8 +1943,14 @@ impl Instruction {
                         address
                     };
 
-                    let (from_y_expr_ty, from_y_expr_address) =
-                        Self::compile_expression(address, from_y_expr, &mut program, fns, &vars)?;
+                    let (from_y_expr_ty, from_y_expr_address) = Self::compile_expression(
+                        address,
+                        from_y_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(from_y_expr_address <= address);
 
@@ -1823,8 +1970,14 @@ impl Instruction {
                         address
                     };
 
-                    let (to_x_expr_ty, to_x_expr_address) =
-                        Self::compile_expression(address, to_x_expr, &mut program, fns, &vars)?;
+                    let (to_x_expr_ty, to_x_expr_address) = Self::compile_expression(
+                        address,
+                        to_x_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(to_x_expr_address <= address);
 
@@ -1844,8 +1997,14 @@ impl Instruction {
                         address
                     };
 
-                    let (to_y_expr_ty, to_y_expr_address) =
-                        Self::compile_expression(address, to_y_expr, &mut program, fns, &vars)?;
+                    let (to_y_expr_ty, to_y_expr_address) = Self::compile_expression(
+                        address,
+                        to_y_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(to_y_expr_address <= address);
 
@@ -1871,6 +2030,7 @@ impl Instruction {
                             var_index_expr,
                             &mut program,
                             fns,
+                            subs,
                             &vars,
                         )?;
 
@@ -1933,8 +2093,14 @@ impl Instruction {
                     let mut branch_to_fix = None;
 
                     for (test_expr, test_body) in tests {
-                        let (test_expr_ty, test_expr_address) =
-                            Self::compile_expression(address, test_expr, &mut program, fns, &vars)?;
+                        let (test_expr_ty, test_expr_address) = Self::compile_expression(
+                            address,
+                            test_expr,
+                            &mut program,
+                            fns,
+                            subs,
+                            &vars,
+                        )?;
 
                         assert!(test_expr_address <= address);
 
@@ -1950,6 +2116,7 @@ impl Instruction {
                             program.len() + program_offset + 1,
                             address,
                             fns,
+                            subs,
                             vars.clone(),
                         )?;
 
@@ -1978,6 +2145,7 @@ impl Instruction {
                             program.len() + program_offset,
                             address,
                             fns,
+                            subs,
                             vars.clone(),
                         )?;
 
@@ -2018,8 +2186,14 @@ impl Instruction {
                 Syntax::Locate(row_expr, col_expr) => {
                     let mut address = address;
 
-                    let (row_expr_ty, row_expr_address) =
-                        Self::compile_expression(address, row_expr, &mut program, fns, &vars)?;
+                    let (row_expr_ty, row_expr_address) = Self::compile_expression(
+                        address,
+                        row_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(row_expr_address <= address);
 
@@ -2038,8 +2212,14 @@ impl Instruction {
                     }
 
                     let col_expr_address = if let Some(col_expr) = col_expr {
-                        let (col_expr_ty, col_expr_address) =
-                            Self::compile_expression(address, col_expr, &mut program, fns, &vars)?;
+                        let (col_expr_ty, col_expr_address) = Self::compile_expression(
+                            address,
+                            col_expr,
+                            &mut program,
+                            fns,
+                            subs,
+                            &vars,
+                        )?;
 
                         assert!(col_expr_address <= address);
 
@@ -2072,6 +2252,7 @@ impl Instruction {
                                 from_x_expr,
                                 &mut program,
                                 fns,
+                                subs,
                                 &vars,
                             )?;
 
@@ -2096,6 +2277,7 @@ impl Instruction {
                                 from_y_expr,
                                 &mut program,
                                 fns,
+                                subs,
                                 &vars,
                             )?;
 
@@ -2127,8 +2309,14 @@ impl Instruction {
                             (from_x_expr_address, from_y_expr_address)
                         };
 
-                    let (to_x_expr_ty, to_x_expr_address) =
-                        Self::compile_expression(address, to_x_expr, &mut program, fns, &vars)?;
+                    let (to_x_expr_ty, to_x_expr_address) = Self::compile_expression(
+                        address,
+                        to_x_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(to_x_expr_address <= address);
 
@@ -2146,8 +2334,14 @@ impl Instruction {
                         address += 1;
                     }
 
-                    let (to_y_expr_ty, to_y_expr_address) =
-                        Self::compile_expression(address, to_y_expr, &mut program, fns, &vars)?;
+                    let (to_y_expr_ty, to_y_expr_address) = Self::compile_expression(
+                        address,
+                        to_y_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(to_y_expr_address <= address);
 
@@ -2165,8 +2359,14 @@ impl Instruction {
                         address += 1;
                     }
 
-                    let (color_expr_ty, color_expr_address) =
-                        Self::compile_expression(address, color_expr, &mut program, fns, &vars)?;
+                    let (color_expr_ty, color_expr_address) = Self::compile_expression(
+                        address,
+                        color_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(color_expr_address <= address);
 
@@ -2199,6 +2399,7 @@ impl Instruction {
                         color_index_expr,
                         &mut program,
                         fns,
+                        subs,
                         &vars,
                     )?;
 
@@ -2219,7 +2420,7 @@ impl Instruction {
                     }
 
                     let (r_expr_ty, r_expr_address) =
-                        Self::compile_expression(address, r_expr, &mut program, fns, &vars)?;
+                        Self::compile_expression(address, r_expr, &mut program, fns, subs, &vars)?;
 
                     assert!(r_expr_address <= address);
 
@@ -2238,7 +2439,7 @@ impl Instruction {
                     }
 
                     let (g_expr_ty, g_expr_address) =
-                        Self::compile_expression(address, g_expr, &mut program, fns, &vars)?;
+                        Self::compile_expression(address, g_expr, &mut program, fns, subs, &vars)?;
 
                     assert!(g_expr_address <= address);
 
@@ -2257,7 +2458,7 @@ impl Instruction {
                     }
 
                     let (b_expr_ty, b_expr_address) =
-                        Self::compile_expression(address, b_expr, &mut program, fns, &vars)?;
+                        Self::compile_expression(address, b_expr, &mut program, fns, subs, &vars)?;
 
                     assert!(b_expr_address <= address);
 
@@ -2284,8 +2485,14 @@ impl Instruction {
                 Syntax::Poke(addr_expr, val_expr) => {
                     let mut address = address;
 
-                    let (addr_expr_ty, addr_expr_address) =
-                        Self::compile_expression(address, addr_expr, &mut program, fns, &vars)?;
+                    let (addr_expr_ty, addr_expr_address) = Self::compile_expression(
+                        address,
+                        addr_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(addr_expr_address <= address);
 
@@ -2303,8 +2510,14 @@ impl Instruction {
                         address += 1;
                     }
 
-                    let (val_expr_ty, val_expr_address) =
-                        Self::compile_expression(address, val_expr, &mut program, fns, &vars)?;
+                    let (val_expr_ty, val_expr_address) = Self::compile_expression(
+                        address,
+                        val_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(val_expr_address <= address);
 
@@ -2332,6 +2545,7 @@ impl Instruction {
                                     expr,
                                     &mut program,
                                     fns,
+                                    subs,
                                     &vars,
                                 )?;
 
@@ -2438,7 +2652,7 @@ impl Instruction {
                     action,
                 ) => {
                     let (x_expr_ty, x_expr_address) =
-                        Self::compile_expression(address, x_expr, &mut program, fns, &vars)?;
+                        Self::compile_expression(address, x_expr, &mut program, fns, subs, &vars)?;
 
                     assert!(x_expr_address <= address);
 
@@ -2459,7 +2673,7 @@ impl Instruction {
                     };
 
                     let (y_expr_ty, y_expr_address) =
-                        Self::compile_expression(address, y_expr, &mut program, fns, &vars)?;
+                        Self::compile_expression(address, y_expr, &mut program, fns, subs, &vars)?;
 
                     assert!(y_expr_address <= address);
 
@@ -2479,8 +2693,14 @@ impl Instruction {
                         address
                     };
 
-                    let (width_expr_ty, width_expr_address) =
-                        Self::compile_expression(address, width_expr, &mut program, fns, &vars)?;
+                    let (width_expr_ty, width_expr_address) = Self::compile_expression(
+                        address,
+                        width_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(width_expr_address <= address);
 
@@ -2500,8 +2720,14 @@ impl Instruction {
                         address
                     };
 
-                    let (height_expr_ty, height_expr_address) =
-                        Self::compile_expression(address, height_expr, &mut program, fns, &vars)?;
+                    let (height_expr_ty, height_expr_address) = Self::compile_expression(
+                        address,
+                        height_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(height_expr_address <= address);
 
@@ -2527,6 +2753,7 @@ impl Instruction {
                             var_index_expr,
                             &mut program,
                             fns,
+                            subs,
                             &vars,
                         )?;
 
@@ -2638,6 +2865,7 @@ impl Instruction {
                                 from_x_expr,
                                 &mut program,
                                 fns,
+                                subs,
                                 &vars,
                             )?;
 
@@ -2662,6 +2890,7 @@ impl Instruction {
                                 from_y_expr,
                                 &mut program,
                                 fns,
+                                subs,
                                 &vars,
                             )?;
 
@@ -2693,8 +2922,14 @@ impl Instruction {
                             (from_x_expr_address, from_y_expr_address)
                         };
 
-                    let (to_x_expr_ty, to_x_expr_address) =
-                        Self::compile_expression(address, to_x_expr, &mut program, fns, &vars)?;
+                    let (to_x_expr_ty, to_x_expr_address) = Self::compile_expression(
+                        address,
+                        to_x_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(to_x_expr_address <= address);
 
@@ -2712,8 +2947,14 @@ impl Instruction {
                         address += 1;
                     }
 
-                    let (to_y_expr_ty, to_y_expr_address) =
-                        Self::compile_expression(address, to_y_expr, &mut program, fns, &vars)?;
+                    let (to_y_expr_ty, to_y_expr_address) = Self::compile_expression(
+                        address,
+                        to_y_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(to_y_expr_address <= address);
 
@@ -2731,8 +2972,14 @@ impl Instruction {
                         address += 1;
                     }
 
-                    let (color_expr_ty, color_expr_address) =
-                        Self::compile_expression(address, color_expr, &mut program, fns, &vars)?;
+                    let (color_expr_ty, color_expr_address) = Self::compile_expression(
+                        address,
+                        color_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(color_expr_address <= address);
 
@@ -2756,6 +3003,7 @@ impl Instruction {
                             is_filled_expr,
                             &mut program,
                             fns,
+                            subs,
                             &vars,
                         )?;
 
@@ -2790,13 +3038,67 @@ impl Instruction {
                         .into(),
                     );
                 }
+                Syntax::Sub(id, args, body_ast) => {
+                    if program_offset != 0 {
+                        return Err(SyntaxError::from_location(
+                            id.location,
+                            format!("Cannot define sub `{}` in this scope.", id.name),
+                        ));
+                    }
+
+                    if fns.contains_key(id.name) {
+                        return Err(SyntaxError::from_location(
+                            id.location,
+                            format!("Cannot redefine function `{}`.", id.name),
+                        ));
+                    }
+
+                    if vars.contains_key(id.name) {
+                        return Err(SyntaxError::from_location(
+                            id.location,
+                            format!("Cannot redefine variable `{}` as sub.", id.name),
+                        ));
+                    }
+
+                    for arg in args {
+                        if arg.ty.is_none() {
+                            return Err(SyntaxError::from_location(
+                                arg.location,
+                                format!("Sub argument `{}` must declare a type.", arg.name),
+                            ));
+                        }
+                    }
+
+                    if subs
+                        .insert(
+                            id.name,
+                            SubScope {
+                                args,
+                                global_vars: vars.clone(),
+                                body_ast,
+                            },
+                        )
+                        .is_some()
+                    {
+                        return Err(SyntaxError::from_location(
+                            id.location,
+                            format!("Cannot redefine sub `{}`.", id.name),
+                        ));
+                    }
+                }
                 Syntax::While {
                     test_expr,
                     body_ast,
                 } => {
                     let test_offset = program.len() + program_offset;
-                    let (test_expr_ty, test_expr_address) =
-                        Self::compile_expression(address, test_expr, &mut program, fns, &vars)?;
+                    let (test_expr_ty, test_expr_address) = Self::compile_expression(
+                        address,
+                        test_expr,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
 
                     assert!(test_expr_address <= address);
 
@@ -2811,8 +3113,14 @@ impl Instruction {
                     }
 
                     let body_offset = program.len() + program_offset + 1;
-                    let body =
-                        Self::compile_scope(body_ast, body_offset, address, fns, vars.clone())?;
+                    let body = Self::compile_scope(
+                        body_ast,
+                        body_offset,
+                        address,
+                        fns,
+                        subs,
+                        vars.clone(),
+                    )?;
 
                     program
                         .push(Self::Branch(test_expr_address, body_offset + body.len() + 1).into());
@@ -2836,14 +3144,6 @@ impl Instruction {
 
         Ok(program)
     }
-}
-
-#[derive(Clone)]
-struct FunctionScope<'a> {
-    ty: Type,
-    args: &'a [Identifier<'a>],
-    global_vars: HashMap<&'a str, (Type, Address)>,
-    body_ast: &'a [Syntax<'a>],
 }
 
 enum ScopeInstruction<'a> {
@@ -2873,6 +3173,13 @@ impl<'a> From<Label<'a>> for ScopeInstruction<'a> {
     fn from(instr: Label<'a>) -> Self {
         Self::Label(instr)
     }
+}
+
+#[derive(Clone)]
+struct SubScope<'a> {
+    args: &'a [Variable<'a>],
+    global_vars: HashMap<&'a str, (Type, Address)>,
+    body_ast: &'a [Syntax<'a>],
 }
 
 #[cfg(test)]

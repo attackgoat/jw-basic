@@ -90,6 +90,7 @@ pub enum Token<'a> {
     ConvertString(Span<'a>),
     Abs(Span<'a>),
     Sin(Span<'a>),
+    Call(Span<'a>),
     Cos(Span<'a>),
     ClearScreen(Span<'a>),
     Color(Span<'a>),
@@ -113,7 +114,7 @@ pub enum Token<'a> {
     Rectangle(Span<'a>),
     Return(Span<'a>),
     Step(Span<'a>),
-    Subroutine(Span<'a>),
+    Sub(Span<'a>),
     Then(Span<'a>),
     Timer(Span<'a>),
     To(Span<'a>),
@@ -362,6 +363,7 @@ impl<'a> Token<'a> {
                     "STR" => Self::ConvertString(input),
                     "ABS" => Self::Abs(input),
                     "SIN" => Self::Sin(input),
+                    "CALL" => Self::Call(input),
                     "COS" => Self::Cos(input),
                     "CLS" => Self::ClearScreen(input),
                     "COLOR" => Self::Color(input),
@@ -385,7 +387,7 @@ impl<'a> Token<'a> {
                     "RECTANGLE" => Self::Rectangle(input),
                     "RETURN" => Self::Return(input),
                     "STEP" => Self::Step(input),
-                    "SUB" => Self::Subroutine(input),
+                    "SUB" => Self::Sub(input),
                     "THEN" => Self::Then(input),
                     "TIMER" => Self::Timer(input),
                     "TO" => Self::To(input),
@@ -433,6 +435,7 @@ impl<'a> Token<'a> {
             | Self::ConvertString(s)
             | Self::Abs(s)
             | Self::Sin(s)
+            | Self::Call(s)
             | Self::Cos(s)
             | Self::ClearScreen(s)
             | Self::Color(s)
@@ -456,7 +459,7 @@ impl<'a> Token<'a> {
             | Self::Rectangle(s)
             | Self::Return(s)
             | Self::Step(s)
-            | Self::Subroutine(s)
+            | Self::Sub(s)
             | Self::Then(s)
             | Self::Timer(s)
             | Self::To(s)
@@ -530,6 +533,7 @@ impl<'a> Debug for Token<'a> {
             Self::ConvertString(..) => f.write_str("ConvertString"),
             Self::Abs(..) => f.write_str("Abs"),
             Self::Sin(..) => f.write_str("Sin"),
+            Self::Call(..) => f.write_str("Call"),
             Self::Cos(..) => f.write_str("Cos"),
             Self::ClearScreen(..) => f.write_str("ClearScreen"),
             Self::Color(..) => f.write_str("Color"),
@@ -553,7 +557,7 @@ impl<'a> Debug for Token<'a> {
             Self::Rectangle(..) => f.write_str("Rectangle"),
             Self::Return(..) => f.write_str("Return"),
             Self::Step(..) => f.write_str("Step"),
-            Self::Subroutine(..) => f.write_str("Subroutine"),
+            Self::Sub(..) => f.write_str("Sub"),
             Self::Then(..) => f.write_str("Then"),
             Self::Timer(..) => f.write_str("Timer"),
             Self::To(..) => f.write_str("To"),

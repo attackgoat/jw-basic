@@ -72,6 +72,7 @@ token!(cint_token, ConvertInteger);
 token!(cstr_token, ConvertString);
 token!(abs_token, Abs);
 token!(sin_token, Sin);
+token!(call_token, Call);
 token!(cos_token, Cos);
 token!(cls_token, ClearScreen);
 token!(color_token, Color);
@@ -95,7 +96,7 @@ token!(put_token, Put);
 token!(rect_token, Rectangle);
 token!(return_token, Return);
 token!(step_token, Step);
-token!(sub_token, Subroutine);
+token!(sub_token, Sub);
 token!(then_token, Then);
 token!(timer_token, Timer);
 token!(to_token, To);
@@ -136,33 +137,22 @@ fn parse_coord(tokens: Tokens) -> IResult<Tokens, (Expression, Expression)> {
 pub struct Identifier<'a> {
     pub location: Span<'a>,
     pub name: &'a str,
-    pub ty: Option<Type>,
 }
 
 impl<'a> Identifier<'a> {
     fn parse(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
-        map(
-            pair(
-                map(id_token, |token| token.identifier().unwrap()),
-                opt(Type::parse),
-            ),
-            |(name, ty)| Self {
+        map(map(id_token, |token| token.identifier().unwrap()), |name| {
+            Self {
                 location: tokens.location(),
                 name,
-                ty,
-            },
-        )(tokens)
+            }
+        })(tokens)
     }
 }
 
 impl<'a> Debug for Identifier<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.write_fmt(format_args!("Identifier `{}` ", self.name))?;
-
-        if let Some(ty) = self.ty {
-            <dyn Debug>::fmt(&ty, f)?;
-            f.write_str(" ")?;
-        }
 
         debug_location(f, self.location)
     }
@@ -179,22 +169,28 @@ pub enum Case<'a> {
 #[derive(Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum Label<'a> {
-    Name(&'a str, Span<'a>),
+    Name(Identifier<'a>),
     Number(u32, Span<'a>),
 }
 
 impl<'a> Label<'a> {
+    pub fn is_name(self) -> bool {
+        matches!(self, Self::Name(..))
+    }
+
+    pub fn is_number(self) -> bool {
+        matches!(self, Self::Number(..))
+    }
+
     pub fn location(self) -> Span<'a> {
         match self {
-            Self::Name(_, location) | Self::Number(_, location) => location,
+            Self::Name(Identifier { location, .. }) | Self::Number(_, location) => location,
         }
     }
 
     fn parse(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
         alt((
-            map(id_token, |token| {
-                Self::Name(token.identifier().unwrap(), tokens.location())
-            }),
+            map(Identifier::parse, Self::Name),
             map(
                 verify(
                     map(i32_lit, |token| token.integer_literal().unwrap()),
@@ -220,7 +216,7 @@ impl<'a> Debug for Label<'a> {
 impl<'a> Display for Label<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            Self::Name(name, _) => f.write_str(name),
+            Self::Name(Identifier { name, .. }) => f.write_str(name),
             Self::Number(number, _) => f.write_fmt(format_args!("{number}")),
         }
     }
@@ -284,24 +280,25 @@ impl Display for PutAction {
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum Syntax<'a> {
-    Assign(Identifier<'a>, Option<Vec<Expression<'a>>>, Expression<'a>),
+    Assign(Variable<'a>, Option<Vec<Expression<'a>>>, Expression<'a>),
+    Call(Identifier<'a>, Vec<Expression<'a>>),
     Color(Expression<'a>, Option<Expression<'a>>),
     ClearScreen,
     Dimension(
         Vec<(
-            Identifier<'a>,
+            Variable<'a>,
             Option<Vec<SubscriptRange<'a>>>,
             Option<Expression<'a>>,
         )>,
     ),
     For(
-        Identifier<'a>,
+        Variable<'a>,
         Expression<'a>,
         Expression<'a>,
         Option<Expression<'a>>,
         Ast<'a>,
     ),
-    Function(Identifier<'a>, Vec<Identifier<'a>>, Ast<'a>),
+    Function(Variable<'a>, Vec<Variable<'a>>, Ast<'a>),
     // GetPalette {
     //     color: Expression,
     //     result_r: StackAddress,
@@ -316,7 +313,7 @@ pub enum Syntax<'a> {
     Get(
         (Expression<'a>, Expression<'a>),
         (Expression<'a>, Expression<'a>),
-        Identifier<'a>,
+        Variable<'a>,
         Option<Expression<'a>>,
     ),
     Goto(Label<'a>),
@@ -346,7 +343,7 @@ pub enum Syntax<'a> {
     Put(
         (Expression<'a>, Expression<'a>),
         (Expression<'a>, Expression<'a>),
-        Identifier<'a>,
+        Variable<'a>,
         Option<Expression<'a>>,
         Option<PutAction>,
     ),
@@ -361,6 +358,7 @@ pub enum Syntax<'a> {
         cases: Vec<(Vec<Case<'a>>, Ast<'a>)>,
         default: Option<(Case<'a>, Ast<'a>)>,
     },
+    Sub(Identifier<'a>, Vec<Variable<'a>>, Ast<'a>),
     // SetPixel {
     //     x: Expression,
     //     y: Expression,
@@ -394,9 +392,11 @@ impl<'a> Syntax<'a> {
                 Self::parse_print,
                 Self::parse_put,
                 Self::parse_rect,
+                Self::parse_sub,
                 Self::parse_while,
                 Self::parse_yield,
                 Self::parse_label,
+                Self::parse_call,
             )),
             many0(end_of_line_punc),
         ))(tokens)
@@ -406,7 +406,7 @@ impl<'a> Syntax<'a> {
         map(
             terminated(
                 tuple((
-                    Identifier::parse,
+                    Variable::parse,
                     opt(delimited(
                         l_paren_punc,
                         separated_list1(comma_punc, Expression::parse),
@@ -418,6 +418,27 @@ impl<'a> Syntax<'a> {
                 opt(end_of_line_punc),
             ),
             |(id, indices, _, expr)| Self::Assign(id, indices, expr),
+        )(tokens)
+    }
+
+    fn parse_call(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        map(
+            delimited(
+                opt(call_token),
+                pair(
+                    Identifier::parse,
+                    map(
+                        opt(delimited(
+                            l_paren_punc,
+                            separated_list0(comma_punc, Expression::parse),
+                            r_paren_punc,
+                        )),
+                        Option::unwrap_or_default,
+                    ),
+                ),
+                opt(end_of_line_punc),
+            ),
+            |(sub, args)| Self::Call(sub, args),
         )(tokens)
     }
 
@@ -463,7 +484,7 @@ impl<'a> Syntax<'a> {
                 separated_list1(
                     comma_punc,
                     tuple((
-                        Identifier::parse,
+                        Variable::parse,
                         opt(subscripts),
                         opt(preceded(eq_op, Expression::parse)),
                     )),
@@ -477,7 +498,7 @@ impl<'a> Syntax<'a> {
     fn parse_for(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
         let (tokens, (_, var, _, start, _, end, step, _)) = tuple((
             for_token,
-            Identifier::parse,
+            Variable::parse,
             eq_op,
             Expression::parse,
             to_token,
@@ -488,7 +509,7 @@ impl<'a> Syntax<'a> {
         let (tokens, ast) = Self::parse(tokens)?;
         let (tokens, (..)) = tuple((
             next_token,
-            opt(verify(Identifier::parse, |next_var| {
+            opt(verify(Variable::parse, |next_var| {
                 next_var.name == var.name && next_var.ty == var.ty
             })),
             opt(end_of_line_punc),
@@ -503,11 +524,11 @@ impl<'a> Syntax<'a> {
                 function_token,
                 separated_pair(
                     tuple((
-                        Identifier::parse,
+                        Variable::parse,
                         map(
                             opt(delimited(
                                 l_paren_punc,
-                                separated_list1(comma_punc, Identifier::parse),
+                                separated_list0(comma_punc, Variable::parse),
                                 r_paren_punc,
                             )),
                             Option::unwrap_or_default,
@@ -518,7 +539,7 @@ impl<'a> Syntax<'a> {
                 ),
                 tuple((end_token, function_token, opt(end_of_line_punc))),
             ),
-            |((id, args), body)| Self::Function(id, args, body),
+            |((var, args), body)| Self::Function(var, args, body),
         )(tokens)
     }
 
@@ -540,7 +561,7 @@ impl<'a> Syntax<'a> {
                             r_paren_punc,
                         ),
                     ),
-                    preceded(comma_punc, Identifier::parse),
+                    preceded(comma_punc, Variable::parse),
                     opt(delimited(l_paren_punc, Expression::parse, r_paren_punc)),
                 )),
                 opt(end_of_line_punc),
@@ -600,7 +621,12 @@ impl<'a> Syntax<'a> {
 
     fn parse_label(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
         map(
-            terminated(Label::parse, opt(alt((end_of_line_punc, colon_punc)))),
+            alt((
+                verify(terminated(Label::parse, colon_punc), |label| {
+                    label.is_name()
+                }),
+                verify(Label::parse, |label| label.is_number()),
+            )),
             Self::Label,
         )(tokens)
     }
@@ -686,7 +712,7 @@ impl<'a> Syntax<'a> {
                             r_paren_punc,
                         ),
                     ),
-                    preceded(comma_punc, Identifier::parse),
+                    preceded(comma_punc, Variable::parse),
                     opt(delimited(l_paren_punc, Expression::parse, r_paren_punc)),
                     opt(preceded(comma_punc, PutAction::parse)),
                 )),
@@ -711,6 +737,31 @@ impl<'a> Syntax<'a> {
             |(_, from_coord, to_coord, _, color, is_filled)| {
                 Self::Rectangle(from_coord, to_coord, color, is_filled)
             },
+        )(tokens)
+    }
+
+    fn parse_sub(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        map(
+            delimited(
+                sub_token,
+                separated_pair(
+                    tuple((
+                        Identifier::parse,
+                        map(
+                            opt(delimited(
+                                l_paren_punc,
+                                separated_list0(comma_punc, Variable::parse),
+                                r_paren_punc,
+                            )),
+                            Option::unwrap_or_default,
+                        ),
+                    )),
+                    many1(end_of_line_punc),
+                    Self::parse,
+                ),
+                tuple((end_token, sub_token, opt(end_of_line_punc))),
+            ),
+            |((sub, args), body)| Self::Sub(sub, args, body),
         )(tokens)
     }
 
@@ -814,6 +865,43 @@ impl Display for Type {
     }
 }
 
+#[derive(Clone, Copy)]
+#[cfg_attr(test, derive(PartialEq))]
+pub struct Variable<'a> {
+    pub location: Span<'a>,
+    pub name: &'a str,
+    pub ty: Option<Type>,
+}
+
+impl<'a> Variable<'a> {
+    fn parse(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        map(
+            pair(
+                map(id_token, |token| token.identifier().unwrap()),
+                opt(Type::parse),
+            ),
+            |(name, ty)| Self {
+                location: tokens.location(),
+                name,
+                ty,
+            },
+        )(tokens)
+    }
+}
+
+impl<'a> Debug for Variable<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_fmt(format_args!("Variable `{}` ", self.name))?;
+
+        if let Some(ty) = self.ty {
+            <dyn Debug>::fmt(&ty, f)?;
+            f.write_str(" ")?;
+        }
+
+        debug_location(f, self.location)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use {super::*, crate::tests::span};
@@ -821,10 +909,6 @@ mod tests {
     /// Asserts the AST defined by two syntaxes is equal; does not compare the original source code
     /// location of each tag.
     fn same_syntax(lhs: &Syntax, rhs: &Syntax) -> bool {
-        fn compare_id(lhs: Identifier, rhs: Identifier) -> bool {
-            lhs.name == rhs.name && lhs.ty == rhs.ty
-        }
-
         fn compare_lit(lhs: Literal, rhs: Literal) -> bool {
             match lhs {
                 Literal::Boolean(lhs, _) => matches!(rhs, Literal::Boolean(rhs, _) if lhs == rhs),
@@ -844,7 +928,7 @@ mod tests {
                     matches!(rhs, Expression::Tuple(rhs, _) if compare_vec(lhs, rhs, compare_expr))
                 }
                 Expression::Variable(lhs) => {
-                    matches!(rhs, Expression::Variable(rhs) if compare_id(*lhs, *rhs))
+                    matches!(rhs, Expression::Variable(rhs) if compare_var(*lhs, *rhs))
                 }
                 Expression::Infix(lhs_op, lhs1, lhs2, _) => {
                     matches!(rhs, Expression::Infix(rhs_op, rhs1, rhs2, _) if *lhs_op == *rhs_op && compare_expr(lhs1, rhs1) && compare_expr(lhs2, rhs2))
@@ -852,8 +936,8 @@ mod tests {
                 Expression::Prefix(lhs_op, lhs, _) => {
                     matches!(rhs, Expression::Prefix(rhs_op, rhs, _) if lhs_op == rhs_op && compare_expr(lhs, rhs))
                 }
-                Expression::Function(lhs_id, lhs, _) => {
-                    matches!(rhs, Expression::Function(rhs_id, rhs, _) if compare_id(*lhs_id, *rhs_id) && compare_vec(lhs,rhs, compare_expr))
+                Expression::Function(lhs_var, lhs, _) => {
+                    matches!(rhs, Expression::Function(rhs_var, rhs, _) if compare_var(*lhs_var, *rhs_var) && compare_vec(lhs, rhs, compare_expr))
                 }
                 Expression::ConvertBoolean(lhs, _) => {
                     matches!(rhs, Expression::ConvertBoolean(rhs, _) if compare_expr(lhs, rhs))
@@ -894,10 +978,10 @@ mod tests {
         }
 
         fn compare_dim(
-            lhs: &(Identifier, Option<Vec<SubscriptRange>>, Option<Expression>),
-            rhs: &(Identifier, Option<Vec<SubscriptRange>>, Option<Expression>),
+            lhs: &(Variable, Option<Vec<SubscriptRange>>, Option<Expression>),
+            rhs: &(Variable, Option<Vec<SubscriptRange>>, Option<Expression>),
         ) -> bool {
-            compare_id(lhs.0, rhs.0)
+            compare_var(lhs.0, rhs.0)
                 && compare_opt(&lhs.1, &rhs.1, |lhs, rhs| {
                     compare_vec(lhs, rhs, compare_subscript_range)
                 })
@@ -912,6 +996,10 @@ mod tests {
                 || (lhs.is_some()
                     && rhs.is_some()
                     && f(lhs.as_ref().unwrap(), rhs.as_ref().unwrap()))
+        }
+
+        fn compare_var(lhs: Variable, rhs: Variable) -> bool {
+            lhs.name == rhs.name && lhs.ty == rhs.ty
         }
 
         fn compare_vec<T, F>(lhs: &Vec<T>, rhs: &Vec<T>, f: F) -> bool
@@ -949,7 +1037,7 @@ mod tests {
         let input = b"var1 = 5";
 
         let expected = vec![Syntax::Assign(
-            Identifier {
+            Variable {
                 location: span(0, 1, input),
                 name: "var1",
                 ty: None,
@@ -969,7 +1057,7 @@ mod tests {
         let input = b"DIM var1%(-100 TO 100) = 5";
 
         let expected = vec![Syntax::Dimension(vec![(
-            Identifier {
+            Variable {
                 location: span(4, 1, input),
                 name: "var1",
                 ty: Some(Type::Integer),
@@ -995,7 +1083,7 @@ mod tests {
         let input = b"DIM var1 = 5";
 
         let expected = vec![Syntax::Dimension(vec![(
-            Identifier {
+            Variable {
                 location: span(4, 1, input),
                 name: "var1",
                 ty: None,
@@ -1015,7 +1103,7 @@ mod tests {
         let input = b"DIM var1 = 5%";
 
         let expected = vec![Syntax::Dimension(vec![(
-            Identifier {
+            Variable {
                 location: span(4, 1, input),
                 name: "var1",
                 ty: None,
@@ -1035,7 +1123,7 @@ mod tests {
         let input = b"DIM var1% = 5";
 
         let expected = vec![Syntax::Dimension(vec![(
-            Identifier {
+            Variable {
                 location: span(4, 1, input),
                 name: "var1",
                 ty: Some(Type::Integer),
@@ -1055,7 +1143,7 @@ mod tests {
         let input = b"DIM var1% = 5%";
 
         let expected = vec![Syntax::Dimension(vec![(
-            Identifier {
+            Variable {
                 location: span(4, 1, input),
                 name: "var1",
                 ty: Some(Type::Integer),
@@ -1076,7 +1164,7 @@ mod tests {
 
         let expected = vec![Syntax::Dimension(vec![
             (
-                Identifier {
+                Variable {
                     location: span(4, 1, input),
                     name: "var1",
                     ty: None,
@@ -1085,7 +1173,7 @@ mod tests {
                 Some(Expression::Literal(Literal::Integer(5, span(11, 1, input)))),
             ),
             (
-                Identifier {
+                Variable {
                     location: span(14, 1, input),
                     name: "var2",
                     ty: None,
@@ -1109,7 +1197,7 @@ mod tests {
         let input = b"DIM var1 = 1 + 2";
 
         let expected = vec![Syntax::Dimension(vec![(
-            Identifier {
+            Variable {
                 location: span(4, 1, input),
                 name: "var1",
                 ty: None,

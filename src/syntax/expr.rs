@@ -4,7 +4,7 @@ use {
         comma_punc, cos_token, cstr_token, debug_location, div_op, eq_op, f32_ty, gt_op, gte_op,
         i32_ty, key_down_token, l_paren_punc, l_sq_bracket_punc, lt_op, lte_op, mul_op, ne_op,
         not_op, or_op, peek_token, r_paren_punc, r_sq_bracket_punc, sin_token, str_ty, sub_op,
-        timer_token, u8_ty, xor_op, Identifier, Literal, Span, Token, Tokens, Type,
+        timer_token, u8_ty, xor_op, Literal, Span, Token, Tokens, Type, Variable,
     },
     nom::{
         branch::alt,
@@ -23,12 +23,12 @@ pub enum Expression<'a> {
     // Values
     Literal(Literal<'a>),
     Tuple(Vec<Self>, Span<'a>),
-    Variable(Identifier<'a>),
+    Variable(Variable<'a>),
     // Operations
     Infix(Infix, Box<Self>, Box<Self>, Span<'a>),
     Prefix(Prefix, Box<Self>, Span<'a>),
     // Functions
-    Function(Identifier<'a>, Vec<Self>, Span<'a>),
+    Function(Variable<'a>, Vec<Self>, Span<'a>),
     ConvertBoolean(Box<Self>, Span<'a>),
     ConvertByte(Box<Self>, Span<'a>),
     ConvertFloat(Box<Self>, Span<'a>),
@@ -187,14 +187,14 @@ impl<'a> Expression<'a> {
             ),
             map(
                 tuple((
-                    Identifier::parse,
+                    Variable::parse,
                     l_paren_punc,
                     separated_list0(comma_punc, Self::parse),
                     r_paren_punc,
                 )),
                 |(id, _, exprs, _)| Self::Function(id, exprs, tokens.location()),
             ),
-            map(Identifier::parse, Self::Variable),
+            map(Variable::parse, Self::Variable),
             map(Literal::parse, Self::Literal),
             Self::parse_prefix,
             delimited(l_paren_punc, Self::parse, r_paren_punc),
@@ -680,7 +680,7 @@ mod tests {
             Infix::Add,
             Box::new(Expression::Prefix(
                 Prefix::Minus,
-                Box::new(Expression::Variable(Identifier {
+                Box::new(Expression::Variable(Variable {
                     name: "a",
                     location: span(1, 1, input),
                     ty: None,
