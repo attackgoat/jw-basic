@@ -837,8 +837,12 @@ impl Display for SyntaxError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(
             f,
-            "line {}, column {}: {}",
-            self.line_number, self.column_number, self.reason
+            "line {}, column {}: {}\n{}\n{}^-- Here",
+            self.line_number,
+            self.column_number,
+            self.reason,
+            self.line,
+            " ".repeat(self.column_number.max(1) - 1)
         )
     }
 }
