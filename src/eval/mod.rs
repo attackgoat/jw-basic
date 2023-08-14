@@ -7,6 +7,7 @@ pub use {charset::ascii_5x6, instr::Instruction, palette::vga_256};
 use {
     bytemuck::cast_slice,
     inline_spirv::inline_spirv,
+    rand::{random, Rng},
     screen_13::prelude::*,
     std::{mem::size_of, ops::Range, sync::Arc, time::Instant},
 };
@@ -1129,6 +1130,9 @@ impl Interpreter {
                         self.stack[g].byte(),
                         self.stack[b].byte(),
                     );
+                }
+                &Instruction::Random(addr) => {
+                    self.stack[addr] = Value::Float(random());
                 }
                 &Instruction::Rectangle(from_x, from_y, to_x, to_y, color, is_filled) => {
                     self.rectangle(

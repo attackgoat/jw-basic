@@ -3,8 +3,8 @@ use {
         abs_token, add_op, and_op, bool_ty, cbool_token, cbyte_token, cfloat_token, cint_token,
         comma_punc, cos_token, cstr_token, debug_location, div_op, eq_op, f32_ty, gt_op, gte_op,
         i32_ty, key_down_token, l_paren_punc, l_sq_bracket_punc, lt_op, lte_op, mul_op, ne_op,
-        not_op, or_op, peek_token, r_paren_punc, r_sq_bracket_punc, sin_token, str_ty, sub_op,
-        timer_token, u8_ty, xor_op, Literal, Span, Token, Tokens, Type, Variable,
+        not_op, or_op, peek_token, r_paren_punc, r_sq_bracket_punc, rnd_token, sin_token, str_ty,
+        sub_op, timer_token, u8_ty, xor_op, Literal, Span, Token, Tokens, Type, Variable,
     },
     nom::{
         branch::alt,
@@ -39,6 +39,7 @@ pub enum Expression<'a> {
     Cos(Box<Self>, Span<'a>),
     Peek(Option<Type>, Box<Self>, Span<'a>),
     KeyDown(Box<Self>, Span<'a>),
+    Random(Span<'a>),
     Timer(Span<'a>),
 }
 
@@ -61,6 +62,7 @@ impl<'a> Expression<'a> {
             | Self::Cos(_, res)
             | Self::Peek(.., res)
             | Self::KeyDown(_, res)
+            | Self::Random(res)
             | Self::Timer(res) => *res,
         }
     }
@@ -180,6 +182,14 @@ impl<'a> Expression<'a> {
                     r_paren_punc,
                 )),
                 |(_, _, _, expr, _)| Self::KeyDown(expr, tokens.location()),
+            ),
+            map(
+                tuple((
+                    rnd_token,
+                    opt(f32_ty),
+                    opt(pair(l_paren_punc, r_paren_punc)),
+                )),
+                |(_, _, _)| Self::Random(tokens.location()),
             ),
             map(
                 tuple((timer_token, opt(i32_ty), l_paren_punc, r_paren_punc)),
@@ -401,6 +411,10 @@ impl<'a> Debug for Expression<'a> {
                 f.write_str("KeyDown (")?;
                 expr.fmt(f)?;
                 f.write_str(") ")?;
+                debug_location(f, *location)?;
+            }
+            Self::Random(location) => {
+                f.write_str("Rnd ")?;
                 debug_location(f, *location)?;
             }
             Self::Timer(location) => {

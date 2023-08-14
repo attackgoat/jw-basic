@@ -113,6 +113,7 @@ pub enum Token<'a> {
     Put(Span<'a>),
     Rectangle(Span<'a>),
     Return(Span<'a>),
+    Rnd(Span<'a>),
     Step(Span<'a>),
     Sub(Span<'a>),
     Then(Span<'a>),
@@ -386,6 +387,7 @@ impl<'a> Token<'a> {
                     "PUT" => Self::Put(input),
                     "RECTANGLE" => Self::Rectangle(input),
                     "RETURN" => Self::Return(input),
+                    "RND" => Self::Rnd(input),
                     "STEP" => Self::Step(input),
                     "SUB" => Self::Sub(input),
                     "THEN" => Self::Then(input),
@@ -458,6 +460,7 @@ impl<'a> Token<'a> {
             | Self::Put(s)
             | Self::Rectangle(s)
             | Self::Return(s)
+            | Self::Rnd(s)
             | Self::Step(s)
             | Self::Sub(s)
             | Self::Then(s)
@@ -556,6 +559,7 @@ impl<'a> Debug for Token<'a> {
             Self::Put(..) => f.write_str("Put"),
             Self::Rectangle(..) => f.write_str("Rectangle"),
             Self::Return(..) => f.write_str("Return"),
+            Self::Rnd(..) => f.write_str("Return"),
             Self::Step(..) => f.write_str("Step"),
             Self::Sub(..) => f.write_str("Sub"),
             Self::Then(..) => f.write_str("Then"),

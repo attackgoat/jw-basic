@@ -374,6 +374,17 @@ RECTANGLE [(x0, y0) -] (x1, y1), color[, filled]
     filled:         Any expression which evaluates to a boolean.
 
 
+RND[!][()]
+
+    Returns a random float number uniformly distributed in the half-open range [0, 1).
+
+    Examples:
+
+        x% = INT(RND * 6.0) + 1
+        y% = INT(RND * 6.0) + 1
+        PRINT "Roll of two dice: "; x%; "and "; y%
+
+
 SUB name[([var{type}][, var{type}] ... )]
     [..]
 END SUB

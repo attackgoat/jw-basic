@@ -95,6 +95,7 @@ token!(print_token, Print);
 token!(put_token, Put);
 token!(rect_token, Rectangle);
 token!(return_token, Return);
+token!(rnd_token, Rnd);
 token!(step_token, Step);
 token!(sub_token, Sub);
 token!(then_token, Then);
@@ -989,6 +990,7 @@ mod tests {
                 Expression::KeyDown(lhs, _) => {
                     matches!(rhs, Expression::KeyDown(rhs, _) if compare_expr(lhs, rhs))
                 }
+                Expression::Random(_) => matches!(rhs, Expression::Random(_)),
                 Expression::Timer(_) => matches!(rhs, Expression::Timer(_)),
             }
         }

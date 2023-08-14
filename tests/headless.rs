@@ -251,6 +251,14 @@ fn peek_poke() {
 }
 
 #[test]
+fn rnd() {
+    let res = Headless::execute("rnd.bas");
+
+    res.assert_printed((15, 0), (0, 0), "Roll of two dice: ");
+    res.assert_printed((15, 0), (0, 20), "and ");
+}
+
+#[test]
 fn sub() {
     let res = Headless::execute("sub.bas");
 

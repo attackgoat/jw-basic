@@ -113,6 +113,7 @@ pub enum Instruction {
     Locate(Address, Address),
     Palette(Address, Address, Address, Address),
     PrintString(Address),
+    Random(Address),
     Rectangle(Address, Address, Address, Address, Address, Address),
     SetPixel(Address, Address, Address),
     Timer(Address),
@@ -663,6 +664,10 @@ impl Instruction {
                 program.push(Self::KeyDown(expr_address, address).into());
 
                 (Type::Boolean, address)
+            }
+            Expression::Random(_) => {
+                program.push(Self::Random(address).into());
+                (Type::Float, address)
             }
             Expression::Timer(_) => {
                 program.push(Self::Timer(address).into());
