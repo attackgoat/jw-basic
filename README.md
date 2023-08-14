@@ -138,7 +138,7 @@ COLOR foreground@[, background@]
         COLOR 4, 14 ' Red on yellow, danger!
 
 
-CBOOLEAN[?](expr) | CBYTE[@](expr) | CFLOAT[!](expr) | CINT[%](expr) | CSTR[$](expr)
+BOOLEAN[?](expr) | BYTE[@](expr) | FLOAT[!](expr) | INT[%](expr) | STR[$](expr)
 
     Converts an expression to another type.
 
@@ -146,7 +146,7 @@ CBOOLEAN[?](expr) | CBYTE[@](expr) | CFLOAT[!](expr) | CINT[%](expr) | CSTR[$](e
 
     Examples:
 
-        CSTR(1.0)
+        STR(1.0)
 
 
 DIM var[type][(subscripts)] [= value] [, var[type][(subscripts)]] [= value] ...
@@ -228,6 +228,39 @@ END FUNCTION
         PRINT changeGlobal()                    ' Prints "1"
 
 
+GET (x0, y1) - (x1, y2), arrayname[(index)]
+PUT (x0, y1), (width, height), arrayname[(index)][, actionverb]
+
+    GET captures a graphics screen image. PUT displays an image captured by GET.
+    PUT Defaults to TSET.
+
+    x0, y0, x1, y1: Any expressions which evaluates to integers.
+    width, height:  Any expressions which evaluates to integers.
+    arrayname:      The name of the array where the image is stored.
+    index:          The integer array index at which storage of the image begins.
+    actionverb:     A keyword indicating how the image is displayed:
+
+                    Keyword    Action
+                    ═══════    ═════════════════════════════════════════════
+                    AND        Merges stored image with an existing image.
+                    OR         Superimposes stored image on existing image.
+                    PSET       Draws stored image, erasing existing image.
+                    PRESET     Draws stored image in reverse colors, erasing
+                               existing image.
+                    XOR        Draws a stored image or erases a previously
+                               drawn image while preserving the background,
+                               producing animation effects.
+                    TSET       Draws stored image, preserving background
+                               where the stored image value is 255.
+
+    Examples:
+
+        DIM fullScreen@(0 TO (160 * 96) - 1)
+        GET (0, 0) - (159, 95), fullScreen
+        CLS
+        PUT (0, 0), (160, 96), fullScreen
+
+
 GOTO [label | line number]
 
     Jumps directly to a given labelled or numbered line. Fun at parties.
@@ -264,7 +297,7 @@ LINE [(x0, y0) -] (x1, y1), color
 
     Draws a line between two points.
 
-    x0, y0, x1, y1: Any expression which evaluates to an integer.
+    x0, y0, x1, y1: Any expressions which evaluates to integers.
     color:          Any expression which evaluates to a byte.
 
 

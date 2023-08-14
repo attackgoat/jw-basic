@@ -60,6 +60,9 @@ token!(not_op, Not);
 token!(and_op, And);
 token!(or_op, Or);
 token!(xor_op, Xor);
+token!(pset_op, Pset);
+token!(preset_op, Preset);
+token!(tset_op, Tset);
 
 // Reserved Words
 token!(cbool_token, ConvertBoolean);
@@ -77,6 +80,7 @@ token!(else_token, Else);
 token!(end_token, End);
 token!(for_token, For);
 token!(function_token, Function);
+token!(get_token, Get);
 token!(goto_token, Goto);
 token!(if_token, If);
 token!(key_down_token, KeyDown);
@@ -87,6 +91,7 @@ token!(palette_token, Palette);
 token!(peek_token, Peek);
 token!(poke_token, Poke);
 token!(print_token, Print);
+token!(put_token, Put);
 token!(rect_token, Rectangle);
 token!(return_token, Return);
 token!(step_token, Step);
@@ -240,6 +245,42 @@ impl<'a> Print<'a> {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum PutAction {
+    And,
+    Or,
+    Pset,
+    Preset,
+    Tset,
+    Xor,
+}
+
+impl PutAction {
+    fn parse(tokens: Tokens) -> IResult<Tokens, Self> {
+        alt((
+            map(and_op, |_| Self::And),
+            map(or_op, |_| Self::Or),
+            map(pset_op, |_| Self::Pset),
+            map(preset_op, |_| Self::Preset),
+            map(tset_op, |_| Self::Tset),
+            map(xor_op, |_| Self::Xor),
+        ))(tokens)
+    }
+}
+
+impl Display for PutAction {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str(match self {
+            Self::And => "AND",
+            Self::Or => "OR",
+            Self::Pset => "PSET",
+            Self::Preset => "PRESET",
+            Self::Tset => "TSET",
+            Self::Xor => "XOR",
+        })
+    }
+}
+
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum Syntax<'a> {
@@ -272,6 +313,12 @@ pub enum Syntax<'a> {
     //     y: Expression,
     //     result: StackAddress,
     // },
+    Get(
+        (Expression<'a>, Expression<'a>),
+        (Expression<'a>, Expression<'a>),
+        Identifier<'a>,
+        Option<Expression<'a>>,
+    ),
     Goto(Label<'a>),
     If {
         tests: Vec<(Expression<'a>, Ast<'a>)>,
@@ -296,6 +343,13 @@ pub enum Syntax<'a> {
     ),
     Poke(Expression<'a>, Expression<'a>),
     Print(Vec<Print<'a>>),
+    Put(
+        (Expression<'a>, Expression<'a>),
+        (Expression<'a>, Expression<'a>),
+        Identifier<'a>,
+        Option<Expression<'a>>,
+        Option<PutAction>,
+    ),
     Rectangle(
         Option<(Expression<'a>, Expression<'a>)>,
         (Expression<'a>, Expression<'a>),
@@ -330,6 +384,7 @@ impl<'a> Syntax<'a> {
                 Self::parse_dim,
                 Self::parse_for,
                 Self::parse_function,
+                Self::parse_get,
                 Self::parse_goto,
                 Self::parse_if,
                 Self::parse_line,
@@ -337,6 +392,7 @@ impl<'a> Syntax<'a> {
                 Self::parse_palette,
                 Self::parse_poke,
                 Self::parse_print,
+                Self::parse_put,
                 Self::parse_rect,
                 Self::parse_while,
                 Self::parse_yield,
@@ -466,6 +522,35 @@ impl<'a> Syntax<'a> {
         )(tokens)
     }
 
+    fn parse_get(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        map(
+            delimited(
+                get_token,
+                tuple((
+                    delimited(
+                        l_paren_punc,
+                        separated_pair(Expression::parse, comma_punc, Expression::parse),
+                        r_paren_punc,
+                    ),
+                    preceded(
+                        sub_op,
+                        delimited(
+                            l_paren_punc,
+                            separated_pair(Expression::parse, comma_punc, Expression::parse),
+                            r_paren_punc,
+                        ),
+                    ),
+                    preceded(comma_punc, Identifier::parse),
+                    opt(delimited(l_paren_punc, Expression::parse, r_paren_punc)),
+                )),
+                opt(end_of_line_punc),
+            ),
+            |(from_exprs, to_exprs, var, var_index_expr)| {
+                Self::Get(from_exprs, to_exprs, var, var_index_expr)
+            },
+        )(tokens)
+    }
+
     fn parse_goto(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
         map(
             delimited(goto_token, Label::parse, opt(end_of_line_punc)),
@@ -580,6 +665,36 @@ impl<'a> Syntax<'a> {
         map(
             delimited(print_token, many0(Print::parse), opt(end_of_line_punc)),
             Self::Print,
+        )(tokens)
+    }
+
+    fn parse_put(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        map(
+            delimited(
+                put_token,
+                tuple((
+                    delimited(
+                        l_paren_punc,
+                        separated_pair(Expression::parse, comma_punc, Expression::parse),
+                        r_paren_punc,
+                    ),
+                    preceded(
+                        comma_punc,
+                        delimited(
+                            l_paren_punc,
+                            separated_pair(Expression::parse, comma_punc, Expression::parse),
+                            r_paren_punc,
+                        ),
+                    ),
+                    preceded(comma_punc, Identifier::parse),
+                    opt(delimited(l_paren_punc, Expression::parse, r_paren_punc)),
+                    opt(preceded(comma_punc, PutAction::parse)),
+                )),
+                opt(end_of_line_punc),
+            ),
+            |(from_exprs, size_exprs, var, var_index_expr, action)| {
+                Self::Put(from_exprs, size_exprs, var, var_index_expr, action)
+            },
         )(tokens)
     }
 

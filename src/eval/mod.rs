@@ -11,23 +11,23 @@ use {
     std::{mem::size_of, ops::Range, sync::Arc, time::Instant},
 };
 
-fn index_multi_to_linear(indexes: &[usize], subscripts: &mut Box<[Range<usize>]>) -> usize {
+fn index_multi_to_linear(indexes: &[i32], subscripts: &[Range<i32>]) -> usize {
     let mut idx = 0;
-    let mut mul = 1;
+    let mut mul = 1usize;
 
     for (index, (start, len)) in indexes.iter().copied().zip(
         subscripts
             .iter()
             .map(|subscript| (subscript.start, subscript.len() + 1)),
     ) {
-        idx += (index - start) * mul;
+        idx += (index - start) * mul as i32;
         mul *= len;
     }
 
-    idx
+    idx as _
 }
 
-fn linear_len_from_multi(subscripts: &[Range<usize>]) -> usize {
+fn linear_len_from_multi(subscripts: &[Range<i32>]) -> usize {
     subscripts
         .iter()
         .map(|subscript| subscript.len() + 1)
@@ -372,28 +372,54 @@ impl Interpreter {
         )?))
     }
 
-    fn deref_index_adresses(&self, index_addresses: &[usize]) -> Box<[usize]> {
+    fn deref_index_adresses(&self, index_addresses: &[usize]) -> Box<[i32]> {
         index_addresses
             .iter()
             .copied()
-            .map(|index| self.stack[index].integer() as _)
+            .map(|index| self.stack[index].integer())
             .collect()
     }
 
-    fn deref_subscript_addresses(
-        &self,
-        subscript_addresses: &[Range<usize>],
-    ) -> Box<[Range<usize>]> {
+    fn deref_subscript_addresses(&self, subscript_addresses: &[Range<usize>]) -> Box<[Range<i32>]> {
         subscript_addresses
             .iter()
             .map(|subscript| {
-                self.stack[subscript.start].integer() as _..self.stack[subscript.end].integer() as _
+                self.stack[subscript.start].integer()..self.stack[subscript.end].integer()
             })
             .collect()
     }
 
     pub fn framebuffer_image(&self) -> &Arc<Image> {
         &self.framebuffer_images[0]
+    }
+
+    fn get_graphic(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, var_addr: usize, var_index: i32) {
+        debug_assert!(y0 <= y1);
+        debug_assert!(x0 <= x1);
+        debug_assert!(x0 >= 0);
+        debug_assert!(x1 >= 0);
+        debug_assert!(y0 >= 0);
+        debug_assert!(y1 >= 0);
+        debug_assert!(x0 < Self::FRAMEBUFFER_WIDTH as i32);
+        debug_assert!(x1 < Self::FRAMEBUFFER_WIDTH as i32);
+        debug_assert!(y0 < Self::FRAMEBUFFER_HEIGHT as i32);
+        debug_assert!(y1 < Self::FRAMEBUFFER_HEIGHT as i32);
+
+        let width = (x1 - x0) as u32 + 1;
+        let height = (y1 - y0) as u32 + 1;
+        let len = width * height;
+        let data = self.stack[var_addr].byte_slice_mut(var_index..var_index + len as i32);
+
+        // TODO: Treat graphics data as u64 and copy 16x faster!
+
+        let mut idx = 0;
+        for y in y0..=y1 {
+            for x in x0..=x1 {
+                data[idx] =
+                    self.graphics_data[y as usize * Self::FRAMEBUFFER_WIDTH as usize + x as usize];
+                idx += 1;
+            }
+        }
     }
 
     #[allow(dead_code)]
@@ -550,6 +576,115 @@ impl Interpreter {
         self.location = (0, final_row);
     }
 
+    fn put_graphic(
+        &mut self,
+        position: (i32, i32),
+        size: (i32, i32),
+        var_addr: usize,
+        var_index: i32,
+        blend_fn: fn(u8, &mut u8),
+    ) {
+        let (x, y) = position;
+        let (width, height) = size;
+
+        debug_assert!(width > 0);
+        debug_assert!(height > 0);
+
+        let src_len = width * height;
+        let data = self.stack[var_addr].byte_slice(var_index..var_index + src_len);
+
+        // TODO: Treat graphics data as u64 and blend 16x faster!
+
+        let mut idx = 0;
+        for y in y.max(0)..(y + height).min(Self::FRAMEBUFFER_HEIGHT as i32) {
+            for x in x.max(0)..(x + width).min(Self::FRAMEBUFFER_WIDTH as i32) {
+                let dst = &mut self.graphics_data
+                    [y as usize * Self::FRAMEBUFFER_WIDTH as usize + x as usize];
+                blend_fn(data[idx], dst);
+                idx += 1;
+            }
+        }
+
+        self.graphics_dirty = true;
+    }
+
+    fn put_graphic_and(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        var_addr: usize,
+        var_index: i32,
+    ) {
+        self.put_graphic((x, y), (width, height), var_addr, var_index, |a, b| *b &= a);
+    }
+
+    fn put_graphic_or(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        var_addr: usize,
+        var_index: i32,
+    ) {
+        self.put_graphic((x, y), (width, height), var_addr, var_index, |a, b| *b |= a);
+    }
+
+    fn put_graphic_pset(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        var_addr: usize,
+        var_index: i32,
+    ) {
+        self.put_graphic((x, y), (width, height), var_addr, var_index, |a, b| *b = a);
+    }
+
+    fn put_graphic_preset(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        var_addr: usize,
+        var_index: i32,
+    ) {
+        self.put_graphic((x, y), (width, height), var_addr, var_index, |a, b| *b = !a);
+    }
+
+    fn put_graphic_tset(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        var_addr: usize,
+        var_index: i32,
+    ) {
+        self.put_graphic((x, y), (width, height), var_addr, var_index, |a, b| {
+            // Only set the color if it is not the default background color (transparent)
+            if a != Self::DEFAULT_COLOR.1 {
+                *b = a
+            }
+        });
+    }
+
+    fn put_graphic_xor(
+        &mut self,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+        var_addr: usize,
+        var_index: i32,
+    ) {
+        self.put_graphic((x, y), (width, height), var_addr, var_index, |a, b| *b ^= a);
+    }
+
     pub fn rectangle(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: u8, is_filled: bool) {
         debug_assert!(x0 >= 0);
         debug_assert!(x1 >= 0);
@@ -559,6 +694,8 @@ impl Interpreter {
         debug_assert!(x1 < Self::FRAMEBUFFER_WIDTH as i32);
         debug_assert!(y0 < Self::FRAMEBUFFER_HEIGHT as i32);
         debug_assert!(y1 < Self::FRAMEBUFFER_HEIGHT as i32);
+
+        // TODO: Treat graphics data as u64 and fill 16x faster!
 
         if is_filled {
             for y in y0..=y1 {
@@ -1015,6 +1152,119 @@ impl Interpreter {
                     );
                 }
 
+                &Instruction::GetGraphic(from_x, from_y, to_x, to_y, var_addr, var_index_addr) => {
+                    self.get_graphic(
+                        self.stack[from_x].integer(),
+                        self.stack[from_y].integer(),
+                        self.stack[to_x].integer(),
+                        self.stack[to_y].integer(),
+                        var_addr,
+                        self.stack[var_index_addr].integer(),
+                    );
+                }
+                &Instruction::PutGraphicAnd(
+                    from_x,
+                    from_y,
+                    width,
+                    height,
+                    var_addr,
+                    var_index_addr,
+                ) => {
+                    self.put_graphic_and(
+                        self.stack[from_x].integer(),
+                        self.stack[from_y].integer(),
+                        self.stack[width].integer(),
+                        self.stack[height].integer(),
+                        var_addr,
+                        self.stack[var_index_addr].integer(),
+                    );
+                }
+                &Instruction::PutGraphicOr(
+                    from_x,
+                    from_y,
+                    width,
+                    height,
+                    var_addr,
+                    var_index_addr,
+                ) => {
+                    self.put_graphic_or(
+                        self.stack[from_x].integer(),
+                        self.stack[from_y].integer(),
+                        self.stack[width].integer(),
+                        self.stack[height].integer(),
+                        var_addr,
+                        self.stack[var_index_addr].integer(),
+                    );
+                }
+                &Instruction::PutGraphicPset(
+                    from_x,
+                    from_y,
+                    width,
+                    height,
+                    var_addr,
+                    var_index_addr,
+                ) => {
+                    self.put_graphic_pset(
+                        self.stack[from_x].integer(),
+                        self.stack[from_y].integer(),
+                        self.stack[width].integer(),
+                        self.stack[height].integer(),
+                        var_addr,
+                        self.stack[var_index_addr].integer(),
+                    );
+                }
+                &Instruction::PutGraphicPreset(
+                    from_x,
+                    from_y,
+                    width,
+                    height,
+                    var_addr,
+                    var_index_addr,
+                ) => {
+                    self.put_graphic_preset(
+                        self.stack[from_x].integer(),
+                        self.stack[from_y].integer(),
+                        self.stack[width].integer(),
+                        self.stack[height].integer(),
+                        var_addr,
+                        self.stack[var_index_addr].integer(),
+                    );
+                }
+                &Instruction::PutGraphicTset(
+                    from_x,
+                    from_y,
+                    width,
+                    height,
+                    var_addr,
+                    var_index_addr,
+                ) => {
+                    self.put_graphic_tset(
+                        self.stack[from_x].integer(),
+                        self.stack[from_y].integer(),
+                        self.stack[width].integer(),
+                        self.stack[height].integer(),
+                        var_addr,
+                        self.stack[var_index_addr].integer(),
+                    );
+                }
+                &Instruction::PutGraphicXor(
+                    from_x,
+                    from_y,
+                    width,
+                    height,
+                    var_addr,
+                    var_index_addr,
+                ) => {
+                    self.put_graphic_xor(
+                        self.stack[from_x].integer(),
+                        self.stack[from_y].integer(),
+                        self.stack[width].integer(),
+                        self.stack[height].integer(),
+                        var_addr,
+                        self.stack[var_index_addr].integer(),
+                    );
+                }
+
                 &Instruction::PeekBoolean(heap_addr, stack_addr) => {
                     let heap_addr = self.stack[heap_addr].integer() as usize;
                     self.stack[stack_addr] = Value::Boolean(self.heap[heap_addr] == 1);
@@ -1206,15 +1456,15 @@ impl Interpreter {
 #[derive(Clone, Debug)]
 pub enum Value {
     Boolean(bool),
-    Booleans(Box<[Range<usize>]>, Box<[bool]>),
+    Booleans(Box<[Range<i32>]>, Box<[bool]>),
     Byte(u8),
-    Bytes(Box<[Range<usize>]>, Box<[u8]>),
+    Bytes(Box<[Range<i32>]>, Box<[u8]>),
     Float(f32),
-    Floats(Box<[Range<usize>]>, Box<[f32]>),
+    Floats(Box<[Range<i32>]>, Box<[f32]>),
     Integer(i32),
-    Integers(Box<[Range<usize>]>, Box<[i32]>),
+    Integers(Box<[Range<i32>]>, Box<[i32]>),
     String(String),
-    Strings(Box<[Range<usize>]>, Box<[String]>),
+    Strings(Box<[Range<i32>]>, Box<[String]>),
 }
 
 impl Value {
@@ -1226,7 +1476,7 @@ impl Value {
         }
     }
 
-    fn boolean_mut(&mut self, indexes: &[usize]) -> &mut bool {
+    fn boolean_mut(&mut self, indexes: &[i32]) -> &mut bool {
         if let Self::Booleans(subscripts, data) = self {
             &mut data[index_multi_to_linear(indexes, subscripts)]
         } else {
@@ -1242,11 +1492,33 @@ impl Value {
         }
     }
 
-    fn byte_mut(&mut self, indexes: &[usize]) -> &mut u8 {
+    fn byte_mut(&mut self, indexes: &[i32]) -> &mut u8 {
         if let Self::Bytes(subscripts, data) = self {
             &mut data[index_multi_to_linear(indexes, subscripts)]
         } else {
             unreachable!();
+        }
+    }
+
+    fn byte_slice(&self, range: Range<i32>) -> &[u8] {
+        if let Self::Bytes(subscripts, data) = self {
+            debug_assert_eq!(1, subscripts.len());
+
+            &data[index_multi_to_linear(&[range.start], subscripts)
+                ..index_multi_to_linear(&[range.end], subscripts)]
+        } else {
+            unreachable!()
+        }
+    }
+
+    fn byte_slice_mut(&mut self, range: Range<i32>) -> &mut [u8] {
+        if let Self::Bytes(subscripts, data) = self {
+            debug_assert_eq!(1, subscripts.len());
+
+            &mut data[index_multi_to_linear(&[range.start], subscripts)
+                ..index_multi_to_linear(&[range.end], subscripts)]
+        } else {
+            unreachable!()
         }
     }
 
@@ -1258,7 +1530,7 @@ impl Value {
         }
     }
 
-    fn float_mut(&mut self, indexes: &[usize]) -> &mut f32 {
+    fn float_mut(&mut self, indexes: &[i32]) -> &mut f32 {
         if let Self::Floats(subscripts, data) = self {
             &mut data[index_multi_to_linear(indexes, subscripts)]
         } else {
@@ -1274,7 +1546,7 @@ impl Value {
         }
     }
 
-    fn integer_mut(&mut self, indexes: &[usize]) -> &mut i32 {
+    fn integer_mut(&mut self, indexes: &[i32]) -> &mut i32 {
         if let Self::Integers(subscripts, data) = self {
             &mut data[index_multi_to_linear(indexes, subscripts)]
         } else {
@@ -1290,7 +1562,7 @@ impl Value {
         }
     }
 
-    fn string_mut(&mut self, indexes: &[usize]) -> &mut String {
+    fn string_mut(&mut self, indexes: &[i32]) -> &mut String {
         if let Self::Strings(subscripts, data) = self {
             &mut data[index_multi_to_linear(indexes, subscripts)]
         } else {

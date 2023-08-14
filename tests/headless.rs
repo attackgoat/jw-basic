@@ -74,6 +74,7 @@ fn dim() {
     res.assert_printed((15, 0), (3, 0), "Hello!");
     res.assert_printed((15, 0), (4, 0), "CAB!");
     res.assert_printed((15, 0), (5, 0), "1 22 0");
+    res.assert_printed((15, 0), (6, 0), "1 2 3");
 }
 
 #[test]
@@ -96,6 +97,20 @@ fn for_next() {
     res.assert_printed((2, 0), (13, 0), "990 6");
     res.assert_printed((6, 0), (14, 0), "22.18");
     res.assert_printed((6, 0), (15, 0), "OK");
+}
+
+#[test]
+fn get_put() {
+    let mut res = Headless::execute("get_put.bas");
+
+    // If you make changes to get_put.bas use this line to update the file!
+    // res.save_framebuffer("get_put.bmp");
+
+    res.assert_bitmap("get_put.bmp");
+
+    res.update(&[]);
+
+    res.assert_bitmap("get_put.bmp");
 }
 
 #[test]

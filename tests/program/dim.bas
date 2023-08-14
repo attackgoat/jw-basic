@@ -49,3 +49,10 @@ myArray9(-56, 67) = 0
 myArray9  (-56, 67) = 1
 
 PRINT myArray9(-56, 67), myArray9(-56, 66), myArray9(-55, 62)
+
+DIM myArrayB(-1 to 1)
+myArrayB(-1) = 1
+myArrayB(0) = 2
+myArrayB(1) = 3
+
+PRINT myArrayB(-1), myArrayB(0), myArrayB(1)

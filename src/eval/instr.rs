@@ -1,8 +1,8 @@
 use {
     crate::{
         syntax::{
-            Bitwise, Expression, Identifier, Infix, Label, Literal, Prefix, Print, Relation,
-            Syntax, SyntaxError, Type,
+            Bitwise, Expression, Identifier, Infix, Label, Literal, Prefix, Print, PutAction,
+            Relation, Syntax, SyntaxError, Type,
         },
         token::{location_string, Token, Tokens},
     },
@@ -107,6 +107,14 @@ pub enum Instruction {
     PrintString(Address),
     Rectangle(Address, Address, Address, Address, Address, Address),
     Timer(Address),
+
+    GetGraphic(Address, Address, Address, Address, Address, Address),
+    PutGraphicAnd(Address, Address, Address, Address, Address, Address),
+    PutGraphicOr(Address, Address, Address, Address, Address, Address),
+    PutGraphicPset(Address, Address, Address, Address, Address, Address),
+    PutGraphicPreset(Address, Address, Address, Address, Address, Address),
+    PutGraphicTset(Address, Address, Address, Address, Address, Address),
+    PutGraphicXor(Address, Address, Address, Address, Address, Address),
 
     PeekBoolean(Address, Address),
     PeekByte(Address, Address),
@@ -1767,6 +1775,156 @@ impl Instruction {
                         },
                     );
                 }
+                Syntax::Get(
+                    (from_x_expr, from_y_expr),
+                    (to_x_expr, to_y_expr),
+                    var,
+                    var_index_expr,
+                ) => {
+                    let (from_x_expr_ty, from_x_expr_address) =
+                        Self::compile_expression(address, from_x_expr, &mut program, fns, &vars)?;
+
+                    assert!(from_x_expr_address <= address);
+
+                    if from_x_expr_ty != Type::Integer {
+                        return Err(SyntaxError::from_location(
+                            from_x_expr.location(),
+                            format!(
+                                "Unexpected {} type, must be integer",
+                                from_x_expr_ty.to_string().to_ascii_lowercase()
+                            ),
+                        ));
+                    }
+
+                    let address = if from_x_expr_address == address {
+                        address + 1
+                    } else {
+                        address
+                    };
+
+                    let (from_y_expr_ty, from_y_expr_address) =
+                        Self::compile_expression(address, from_y_expr, &mut program, fns, &vars)?;
+
+                    assert!(from_y_expr_address <= address);
+
+                    if from_y_expr_ty != Type::Integer {
+                        return Err(SyntaxError::from_location(
+                            from_y_expr.location(),
+                            format!(
+                                "Unexpected {} type, must be integer",
+                                from_y_expr_ty.to_string().to_ascii_lowercase()
+                            ),
+                        ));
+                    }
+
+                    let address = if from_y_expr_address == address {
+                        address + 1
+                    } else {
+                        address
+                    };
+
+                    let (to_x_expr_ty, to_x_expr_address) =
+                        Self::compile_expression(address, to_x_expr, &mut program, fns, &vars)?;
+
+                    assert!(to_x_expr_address <= address);
+
+                    if to_x_expr_ty != Type::Integer {
+                        return Err(SyntaxError::from_location(
+                            to_x_expr.location(),
+                            format!(
+                                "Unexpected {} type, must be integer",
+                                to_x_expr_ty.to_string().to_ascii_lowercase()
+                            ),
+                        ));
+                    }
+
+                    let address = if to_x_expr_address == address {
+                        address + 1
+                    } else {
+                        address
+                    };
+
+                    let (to_y_expr_ty, to_y_expr_address) =
+                        Self::compile_expression(address, to_y_expr, &mut program, fns, &vars)?;
+
+                    assert!(to_y_expr_address <= address);
+
+                    if to_y_expr_ty != Type::Integer {
+                        return Err(SyntaxError::from_location(
+                            to_y_expr.location(),
+                            format!(
+                                "Unexpected {} type, must be integer",
+                                to_y_expr_ty.to_string().to_ascii_lowercase()
+                            ),
+                        ));
+                    }
+
+                    let address = if to_y_expr_address == address {
+                        address + 1
+                    } else {
+                        address
+                    };
+
+                    let var_index_expr_address = if let Some(var_index_expr) = var_index_expr {
+                        let (var_index_expr_ty, var_index_expr_address) = Self::compile_expression(
+                            address,
+                            var_index_expr,
+                            &mut program,
+                            fns,
+                            &vars,
+                        )?;
+
+                        assert!(var_index_expr_address <= address);
+
+                        if var_index_expr_ty != Type::Integer {
+                            return Err(SyntaxError::from_location(
+                                var_index_expr.location(),
+                                format!(
+                                    "Unexpected {} type, must be integer",
+                                    var_index_expr_ty.to_string().to_ascii_lowercase()
+                                ),
+                            ));
+                        }
+
+                        var_index_expr_address
+                    } else {
+                        program.push(Self::WriteInteger(0, address).into());
+
+                        address
+                    };
+
+                    let (var_ty, var_address) = vars
+                        .get(var.name)
+                        .ok_or_else(|| {
+                            SyntaxError::from_location(
+                                var.location,
+                                format!("`{}` is undefined.", var.name),
+                            )
+                        })
+                        .copied()?;
+
+                    if var_ty != Type::Byte {
+                        return Err(SyntaxError::from_location(
+                            var.location,
+                            format!(
+                                "Unexpected {} type, must be byte",
+                                var_ty.to_string().to_ascii_lowercase()
+                            ),
+                        ));
+                    }
+
+                    program.push(
+                        Self::GetGraphic(
+                            from_x_expr_address,
+                            from_y_expr_address,
+                            to_x_expr_address,
+                            to_y_expr_address,
+                            var_address,
+                            var_index_expr_address,
+                        )
+                        .into(),
+                    );
+                }
                 &Syntax::Goto(label) => {
                     program.push(label.into());
                 }
@@ -2016,7 +2174,7 @@ impl Instruction {
                         return Err(SyntaxError::from_location(
                             color_expr.location(),
                             format!(
-                                "Unexpected {} type, must be integer",
+                                "Unexpected {} type, must be byte",
                                 color_expr_ty.to_string().to_ascii_lowercase()
                             ),
                         ));
@@ -2272,6 +2430,199 @@ impl Instruction {
 
                     address = str_address;
                 }
+                Syntax::Put(
+                    (x_expr, y_expr),
+                    (width_expr, height_expr),
+                    var,
+                    var_index_expr,
+                    action,
+                ) => {
+                    let (x_expr_ty, x_expr_address) =
+                        Self::compile_expression(address, x_expr, &mut program, fns, &vars)?;
+
+                    assert!(x_expr_address <= address);
+
+                    if x_expr_ty != Type::Integer {
+                        return Err(SyntaxError::from_location(
+                            x_expr.location(),
+                            format!(
+                                "Unexpected {} type, must be integer",
+                                x_expr_ty.to_string().to_ascii_lowercase()
+                            ),
+                        ));
+                    }
+
+                    let address = if x_expr_address == address {
+                        address + 1
+                    } else {
+                        address
+                    };
+
+                    let (y_expr_ty, y_expr_address) =
+                        Self::compile_expression(address, y_expr, &mut program, fns, &vars)?;
+
+                    assert!(y_expr_address <= address);
+
+                    if y_expr_ty != Type::Integer {
+                        return Err(SyntaxError::from_location(
+                            y_expr.location(),
+                            format!(
+                                "Unexpected {} type, must be integer",
+                                y_expr_ty.to_string().to_ascii_lowercase()
+                            ),
+                        ));
+                    }
+
+                    let address = if y_expr_address == address {
+                        address + 1
+                    } else {
+                        address
+                    };
+
+                    let (width_expr_ty, width_expr_address) =
+                        Self::compile_expression(address, width_expr, &mut program, fns, &vars)?;
+
+                    assert!(width_expr_address <= address);
+
+                    if width_expr_ty != Type::Integer {
+                        return Err(SyntaxError::from_location(
+                            width_expr.location(),
+                            format!(
+                                "Unexpected {} type, must be integer",
+                                width_expr_ty.to_string().to_ascii_lowercase()
+                            ),
+                        ));
+                    }
+
+                    let address = if width_expr_address == address {
+                        address + 1
+                    } else {
+                        address
+                    };
+
+                    let (height_expr_ty, height_expr_address) =
+                        Self::compile_expression(address, height_expr, &mut program, fns, &vars)?;
+
+                    assert!(height_expr_address <= address);
+
+                    if height_expr_ty != Type::Integer {
+                        return Err(SyntaxError::from_location(
+                            height_expr.location(),
+                            format!(
+                                "Unexpected {} type, must be integer",
+                                height_expr_ty.to_string().to_ascii_lowercase()
+                            ),
+                        ));
+                    }
+
+                    let address = if height_expr_address == address {
+                        address + 1
+                    } else {
+                        address
+                    };
+
+                    let var_index_expr_address = if let Some(var_index_expr) = var_index_expr {
+                        let (var_index_expr_ty, var_index_expr_address) = Self::compile_expression(
+                            address,
+                            var_index_expr,
+                            &mut program,
+                            fns,
+                            &vars,
+                        )?;
+
+                        assert!(var_index_expr_address <= address);
+
+                        if var_index_expr_ty != Type::Integer {
+                            return Err(SyntaxError::from_location(
+                                var_index_expr.location(),
+                                format!(
+                                    "Unexpected {} type, must be integer",
+                                    var_index_expr_ty.to_string().to_ascii_lowercase()
+                                ),
+                            ));
+                        }
+
+                        var_index_expr_address
+                    } else {
+                        program.push(Self::WriteInteger(0, address).into());
+
+                        address
+                    };
+
+                    let (var_ty, var_address) = vars
+                        .get(var.name)
+                        .ok_or_else(|| {
+                            SyntaxError::from_location(
+                                var.location,
+                                format!("`{}` is undefined.", var.name),
+                            )
+                        })
+                        .copied()?;
+
+                    if var_ty != Type::Byte {
+                        return Err(SyntaxError::from_location(
+                            var.location,
+                            format!(
+                                "Unexpected {} type, must be byte",
+                                var_ty.to_string().to_ascii_lowercase()
+                            ),
+                        ));
+                    }
+
+                    program.push(
+                        match action.unwrap_or(PutAction::Tset) {
+                            PutAction::And => Self::PutGraphicAnd(
+                                x_expr_address,
+                                y_expr_address,
+                                width_expr_address,
+                                height_expr_address,
+                                var_address,
+                                var_index_expr_address,
+                            ),
+                            PutAction::Or => Self::PutGraphicOr(
+                                x_expr_address,
+                                y_expr_address,
+                                width_expr_address,
+                                height_expr_address,
+                                var_address,
+                                var_index_expr_address,
+                            ),
+                            PutAction::Pset => Self::PutGraphicPset(
+                                x_expr_address,
+                                y_expr_address,
+                                width_expr_address,
+                                height_expr_address,
+                                var_address,
+                                var_index_expr_address,
+                            ),
+                            PutAction::Preset => Self::PutGraphicPreset(
+                                x_expr_address,
+                                y_expr_address,
+                                width_expr_address,
+                                height_expr_address,
+                                var_address,
+                                var_index_expr_address,
+                            ),
+                            PutAction::Tset => Self::PutGraphicTset(
+                                x_expr_address,
+                                y_expr_address,
+                                width_expr_address,
+                                height_expr_address,
+                                var_address,
+                                var_index_expr_address,
+                            ),
+                            PutAction::Xor => Self::PutGraphicXor(
+                                x_expr_address,
+                                y_expr_address,
+                                width_expr_address,
+                                height_expr_address,
+                                var_address,
+                                var_index_expr_address,
+                            ),
+                        }
+                        .into(),
+                    );
+                }
                 Syntax::Rectangle(
                     from_exprs,
                     (to_x_expr, to_y_expr),
@@ -2389,7 +2740,7 @@ impl Instruction {
                         return Err(SyntaxError::from_location(
                             color_expr.location(),
                             format!(
-                                "Unexpected {} type, must be integer",
+                                "Unexpected {} type, must be byte",
                                 color_expr_ty.to_string().to_ascii_lowercase()
                             ),
                         ));

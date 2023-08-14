@@ -79,6 +79,9 @@ pub enum Token<'a> {
     And(Span<'a>),
     Or(Span<'a>),
     Xor(Span<'a>),
+    Pset(Span<'a>),
+    Preset(Span<'a>),
+    Tset(Span<'a>),
     // Reserved Words
     ConvertBoolean(Span<'a>),
     ConvertByte(Span<'a>),
@@ -95,6 +98,7 @@ pub enum Token<'a> {
     End(Span<'a>),
     For(Span<'a>),
     Function(Span<'a>),
+    Get(Span<'a>),
     Goto(Span<'a>),
     If(Span<'a>),
     KeyDown(Span<'a>),
@@ -105,6 +109,7 @@ pub enum Token<'a> {
     Peek(Span<'a>),
     Poke(Span<'a>),
     Print(Span<'a>),
+    Put(Span<'a>),
     Rectangle(Span<'a>),
     Return(Span<'a>),
     Step(Span<'a>),
@@ -277,9 +282,12 @@ impl<'a> Token<'a> {
         token!(and, "AND", Token::And);
         token!(or, "OR", Token::Or);
         token!(xor, "XOR", Token::Xor);
+        token!(pset, "PSET", Token::Pset);
+        token!(preset, "PRESET", Token::Preset);
+        token!(tset, "TSET", Token::Tset);
 
         alt((
-            add, sub, mul, div, eq, ne, gte, gt, lte, lt, not, and, or, xor,
+            add, sub, mul, div, eq, ne, gte, gt, lte, lt, not, and, or, xor, pset, preset, tset,
         ))(input)
     }
 
@@ -347,11 +355,11 @@ impl<'a> Token<'a> {
             )),
             |s| {
                 Self::ascii_str(s.fragment()).map(|str| match str.to_ascii_uppercase().as_str() {
-                    "CBOOL" => Self::ConvertBoolean(input),
-                    "CBYTE" => Self::ConvertByte(input),
-                    "CFLOAT" => Self::ConvertFloat(input),
-                    "CINT" => Self::ConvertInteger(input),
-                    "CSTR" => Self::ConvertString(input),
+                    "BOOLEAN" => Self::ConvertBoolean(input),
+                    "BYTE" => Self::ConvertByte(input),
+                    "FLOAT" => Self::ConvertFloat(input),
+                    "INT" => Self::ConvertInteger(input),
+                    "STR" => Self::ConvertString(input),
                     "ABS" => Self::Abs(input),
                     "SIN" => Self::Sin(input),
                     "COS" => Self::Cos(input),
@@ -362,6 +370,7 @@ impl<'a> Token<'a> {
                     "END" => Self::End(input),
                     "FOR" => Self::For(input),
                     "FUNCTION" => Self::Function(input),
+                    "GET" => Self::Get(input),
                     "GOTO" => Self::Goto(input),
                     "IF" => Self::If(input),
                     "KEYDOWN" => Self::KeyDown(input),
@@ -372,6 +381,7 @@ impl<'a> Token<'a> {
                     "PEEK" => Self::Peek(input),
                     "POKE" => Self::Poke(input),
                     "PRINT" => Self::Print(input),
+                    "PUT" => Self::Put(input),
                     "RECTANGLE" => Self::Rectangle(input),
                     "RETURN" => Self::Return(input),
                     "STEP" => Self::Step(input),
@@ -413,6 +423,9 @@ impl<'a> Token<'a> {
             | Self::And(s)
             | Self::Or(s)
             | Self::Xor(s)
+            | Self::Pset(s)
+            | Self::Preset(s)
+            | Self::Tset(s)
             | Self::ConvertBoolean(s)
             | Self::ConvertByte(s)
             | Self::ConvertFloat(s)
@@ -428,6 +441,7 @@ impl<'a> Token<'a> {
             | Self::End(s)
             | Self::For(s)
             | Self::Function(s)
+            | Self::Get(s)
             | Self::Goto(s)
             | Self::If(s)
             | Self::KeyDown(s)
@@ -438,6 +452,7 @@ impl<'a> Token<'a> {
             | Self::Peek(s)
             | Self::Poke(s)
             | Self::Print(s)
+            | Self::Put(s)
             | Self::Rectangle(s)
             | Self::Return(s)
             | Self::Step(s)
@@ -505,6 +520,9 @@ impl<'a> Debug for Token<'a> {
             Self::And(..) => f.write_str("And"),
             Self::Or(..) => f.write_str("Or"),
             Self::Xor(..) => f.write_str("Xor"),
+            Self::Pset(..) => f.write_str("Pset"),
+            Self::Preset(..) => f.write_str("Preset"),
+            Self::Tset(..) => f.write_str("Tset"),
             Self::ConvertBoolean(..) => f.write_str("ConvertBoolean"),
             Self::ConvertByte(..) => f.write_str("ConvertByte"),
             Self::ConvertFloat(..) => f.write_str("ConvertFloat"),
@@ -520,6 +538,7 @@ impl<'a> Debug for Token<'a> {
             Self::Else(..) => f.write_str("Else"),
             Self::For(..) => f.write_str("For"),
             Self::Function(..) => f.write_str("Function"),
+            Self::Get(..) => f.write_str("Get"),
             Self::Goto(..) => f.write_str("Goto"),
             Self::If(..) => f.write_str("If"),
             Self::KeyDown(..) => f.write_str("KeyDown"),
@@ -530,6 +549,7 @@ impl<'a> Debug for Token<'a> {
             Self::Peek(..) => f.write_str("Peek"),
             Self::Poke(..) => f.write_str("Poke"),
             Self::Print(..) => f.write_str("Print"),
+            Self::Put(..) => f.write_str("Put"),
             Self::Rectangle(..) => f.write_str("Rectangle"),
             Self::Return(..) => f.write_str("Return"),
             Self::Step(..) => f.write_str("Step"),
