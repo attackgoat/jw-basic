@@ -172,6 +172,16 @@ DIM var[type][(subscripts)] [= value] [, var[type][(subscripts)]] [= value] ...
         myMatrix(2, -2) = 10.0
 
 
+END [IF | FUNCTION | SUB]
+
+    Ends a program, procedure or block.
+
+    Examples:
+
+        PRINT "Game over."
+        END
+
+
 FOR var = start TO end [STEP step]
     [..]
 NEXT [var]

@@ -292,6 +292,7 @@ pub enum Syntax<'a> {
             Option<Expression<'a>>,
         )>,
     ),
+    End,
     For(
         Variable<'a>,
         Expression<'a>,
@@ -398,7 +399,7 @@ impl<'a> Syntax<'a> {
                 Self::parse_while,
                 Self::parse_yield,
                 Self::parse_label,
-                alt((Self::parse_call, Self::parse_pset)),
+                alt((Self::parse_call, Self::parse_end, Self::parse_pset)),
             )),
             many0(end_of_line_punc),
         ))(tokens)
@@ -453,7 +454,7 @@ impl<'a> Syntax<'a> {
     }
 
     fn parse_cls(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
-        map(terminated(cls_token, opt(end_of_line_punc)), |_| {
+        map(terminated(cls_token, end_of_line_punc), |_| {
             Self::ClearScreen
         })(tokens)
     }
@@ -503,6 +504,10 @@ impl<'a> Syntax<'a> {
             ),
             Self::Dimension,
         )(tokens)
+    }
+
+    fn parse_end(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        map(terminated(end_token, end_of_line_punc), |_| Self::End)(tokens)
     }
 
     fn parse_for(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {

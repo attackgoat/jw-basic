@@ -7,7 +7,7 @@ pub use {charset::ascii_5x6, instr::Instruction, palette::vga_256};
 use {
     bytemuck::cast_slice,
     inline_spirv::inline_spirv,
-    rand::{random, Rng},
+    rand::random,
     screen_13::prelude::*,
     std::{mem::size_of, ops::Range, sync::Arc, time::Instant},
 };
@@ -431,6 +431,10 @@ impl Interpreter {
     #[allow(dead_code)]
     pub fn heap_mut(&mut self) -> &mut [u8] {
         &mut self.heap
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.program_index < self.program.len()
     }
 
     pub fn line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: u8) {
@@ -1353,6 +1357,10 @@ impl Interpreter {
                         self.program_index = program_index;
                         continue;
                     }
+                }
+                Instruction::End => {
+                    self.program_index = self.program.len();
+                    break;
                 }
                 &Instruction::Jump(program_index) => {
                     self.program_index = program_index;

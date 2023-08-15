@@ -139,6 +139,7 @@ pub enum Instruction {
     PokeString(Address, Address),
 
     Branch(Address, usize),
+    End,
     Jump(usize),
     Yield,
 
@@ -1625,6 +1626,7 @@ impl Instruction {
                         address += 1;
                     }
                 }
+                Syntax::End => program.push(Self::End.into()),
                 Syntax::For(var, start_expr, end_expr, step_expr, body_ast) => {
                     let (start_expr_ty, start_expr_address) = Self::compile_expression(
                         address,

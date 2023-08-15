@@ -13,7 +13,7 @@ use {
     glam::{vec3, Mat4},
     inline_spirv::inline_spirv,
     screen_13::prelude::*,
-    std::{fs::read, sync::Arc},
+    std::{fs::read, process::exit, sync::Arc},
 };
 
 #[derive(Parser, Debug)]
@@ -43,9 +43,25 @@ fn main() -> anyhow::Result<()> {
     let mut interpreter = Interpreter::new(&event_loop.device, program)?;
 
     event_loop.run(|frame| {
+        let was_running = interpreter.is_running();
+
         interpreter
             .update(frame.render_graph, frame.events)
             .unwrap();
+
+        if was_running && !interpreter.is_running() {
+            interpreter.locate(0, Interpreter::TEXT_ROWS - 1);
+            interpreter.print("Press any key to continue");
+        }
+
+        if !interpreter.is_running()
+            && frame.events.iter().any(|event| {
+                matches!(event, Event::WindowEvent { event, .. } if matches!(event, WindowEvent::KeyboardInput { .. }))
+            })
+        {
+            // Exit when not running and keyboard input is detected
+            exit(0);
+        }
 
         present_framebuffer_image(&present_pipeline, frame, interpreter.framebuffer_image());
     })?;
