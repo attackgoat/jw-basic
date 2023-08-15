@@ -11,7 +11,7 @@ use {
     nom::{
         branch::alt,
         bytes::complete::take,
-        combinator::{map, opt, value, verify},
+        combinator::{map, not, opt, value, verify},
         multi::{many0, many1, separated_list0, separated_list1},
         sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
         IResult,
@@ -77,6 +77,7 @@ token!(cos_token, Cos);
 token!(cls_token, ClearScreen);
 token!(color_token, Color);
 token!(dim_token, Dimension);
+token!(do_token, Do);
 token!(else_token, Else);
 token!(end_token, End);
 token!(for_token, For);
@@ -87,6 +88,7 @@ token!(if_token, If);
 token!(key_down_token, KeyDown);
 token!(line_token, Line);
 token!(locate_token, Locate);
+token!(loop_token, Loop);
 token!(next_token, Next);
 token!(palette_token, Palette);
 token!(peek_token, Peek);
@@ -101,8 +103,9 @@ token!(sub_token, Sub);
 token!(then_token, Then);
 token!(timer_token, Timer);
 token!(to_token, To);
+token!(until_token, Until);
+token!(wend_token, Wend);
 token!(while_token, While);
-token!(while_end_token, WhileEnd);
 token!(yield_token, Yield);
 
 // Punctuations
@@ -301,17 +304,6 @@ pub enum Syntax<'a> {
         Ast<'a>,
     ),
     Function(Variable<'a>, Vec<Variable<'a>>, Ast<'a>),
-    // GetPalette {
-    //     color: Expression,
-    //     result_r: StackAddress,
-    //     result_g: StackAddress,
-    //     result_b: StackAddress,
-    // },
-    // GetPixel {
-    //     x: Expression,
-    //     y: Expression,
-    //     result: StackAddress,
-    // },
     Get(
         (Expression<'a>, Expression<'a>),
         (Expression<'a>, Expression<'a>),
@@ -330,10 +322,10 @@ pub enum Syntax<'a> {
         Expression<'a>,
     ),
     Locate(Expression<'a>, Option<Expression<'a>>),
-    // Input {
-    //     prompt: Expression,
-    //     result: StackAddress,
-    // },
+    Loop {
+        test: Option<(bool, bool, Expression<'a>)>,
+        body_ast: Ast<'a>,
+    },
     Palette(
         Expression<'a>,
         Expression<'a>,
@@ -362,11 +354,6 @@ pub enum Syntax<'a> {
         default: Option<(Case<'a>, Ast<'a>)>,
     },
     Sub(Identifier<'a>, Vec<Variable<'a>>, Ast<'a>),
-    // SetPixel {
-    //     x: Expression,
-    //     y: Expression,
-    //     color: Expression,
-    // },
     While {
         test_expr: Expression<'a>,
         body_ast: Ast<'a>,
@@ -399,7 +386,12 @@ impl<'a> Syntax<'a> {
                 Self::parse_while,
                 Self::parse_yield,
                 Self::parse_label,
-                alt((Self::parse_call, Self::parse_end, Self::parse_pset)),
+                alt((
+                    Self::parse_call,
+                    Self::parse_end,
+                    Self::parse_loop,
+                    Self::parse_pset,
+                )),
             )),
             many0(end_of_line_punc),
         ))(tokens)
@@ -673,6 +665,53 @@ impl<'a> Syntax<'a> {
         )(tokens)
     }
 
+    fn parse_loop(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        fn parse_until_or_while(tokens: Tokens) -> IResult<Tokens, (bool, Expression)> {
+            pair(
+                alt((map(until_token, |_| false), map(while_token, |_| true))),
+                Expression::parse,
+            )(tokens)
+        }
+
+        fn map_test_cond(
+            test_before: bool,
+            until_or_while: Option<(bool, Expression)>,
+        ) -> Option<(bool, bool, Expression)> {
+            until_or_while.map(|(test_while, test_expr)| (test_before, test_while, test_expr))
+        }
+
+        map(
+            tuple((
+                do_token,
+                alt((
+                    map(
+                        tuple((
+                            opt(parse_until_or_while),
+                            preceded(end_of_line_punc, Self::parse),
+                            loop_token,
+                            not(parse_until_or_while),
+                        )),
+                        |(until_or_while, body_ast, ..)| {
+                            (map_test_cond(true, until_or_while), body_ast)
+                        },
+                    ),
+                    map(
+                        tuple((
+                            preceded(end_of_line_punc, Self::parse),
+                            loop_token,
+                            opt(parse_until_or_while),
+                        )),
+                        |(body_ast, _, until_or_while)| {
+                            (map_test_cond(false, until_or_while), body_ast)
+                        },
+                    ),
+                )),
+                end_of_line_punc,
+            )),
+            |(_, (test, body_ast), ..)| Self::Loop { test, body_ast },
+        )(tokens)
+    }
+
     fn parse_palette(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
         map(
             delimited(
@@ -806,8 +845,8 @@ impl<'a> Syntax<'a> {
                 Expression::parse,
                 end_of_line_punc,
                 Self::parse,
-                while_end_token,
-                opt(end_of_line_punc),
+                wend_token,
+                end_of_line_punc,
             )),
             |(_, test_expr, _, body_ast, ..)| Self::While {
                 test_expr,

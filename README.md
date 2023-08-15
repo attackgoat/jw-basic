@@ -172,6 +172,28 @@ DIM var[type][(subscripts)] [= value] [, var[type][(subscripts)]] [= value] ...
         myMatrix(2, -2) = 10.0
 
 
+DO [{WHILE | UNTIL} condition]
+   [..]
+LOOP
+
+DO
+   [..]
+LOOP [{WHILE | UNTIL} condition]
+
+    Repeats a block of statements while a condition is true or until a condition becomes true.
+
+    condition:  Any expression which evaluates to a boolean.
+
+    Examples:
+
+        i% = 0
+        PRINT "Value of i% at beginning "; i%
+        DO WHILE i% < 10
+        i% = i% + 1
+        LOOP
+        PRINT "Value of i% at end "; i%
+
+
 END [IF | FUNCTION | SUB]
 
     Ends a program, procedure or block.

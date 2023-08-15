@@ -139,6 +139,7 @@ pub enum Instruction {
     PokeString(Address, Address),
 
     Branch(Address, usize),
+    BranchNot(Address, usize),
     End,
     Jump(usize),
     Yield,
@@ -171,7 +172,7 @@ pub enum Instruction {
 impl Instruction {
     pub fn compile(source_code: &[u8]) -> Result<Vec<Self>, SyntaxError> {
         // Lex the source code into tokens - this only checks for symbols being identifiable
-        let (remaining_tokens, tokens) = match Token::lex(source_code) {
+        let (remaining_tokens, mut tokens) = match Token::lex(source_code) {
             Err(Err::Error(Error { input, code: _ }) | Err::Failure(Error { input, code: _ })) => {
                 Err(SyntaxError::from_location(
                     input,
@@ -181,6 +182,16 @@ impl Instruction {
             Err(Err::Incomplete(_)) => unreachable!(),
             Ok(res) => Ok(res),
         }?;
+
+        // Artificially add a final end-of-line in case the file ends on the last line (This makes
+        // parsing simpler because we can always expect an end-of-line). We could do this in the
+        // lexer but it is specific to this code path only and we don't want to test the artificial
+        // data in those tests. This is tested in the integration tests. See headless.rs
+        if let Some(last_token) = tokens.last() {
+            if !matches!(last_token, Token::EndOfLine(_)) {
+                tokens.push(Token::EndOfLine(last_token.location()));
+            }
+        }
 
         debug!("Tokens:");
         debug!("{:#?}", tokens);
@@ -1764,7 +1775,7 @@ impl Instruction {
                                 Self::GreaterThanBytes(step_expr_address, address, address).into(),
                             );
                             program.push(
-                                Self::Branch(address, program.len() + program_offset + 4).into(),
+                                Self::BranchNot(address, program.len() + program_offset + 4).into(),
                             );
                             program.push(
                                 Self::GreaterThanBytes(
@@ -1774,7 +1785,7 @@ impl Instruction {
                                 )
                                 .into(),
                             );
-                            program.push(Self::Branch(address, body_offset).into());
+                            program.push(Self::BranchNot(address, body_offset).into());
                             program.push(Self::Jump(program.len() + program_offset + 3).into());
                             program.push(
                                 Self::GreaterThanBytes(
@@ -1784,7 +1795,7 @@ impl Instruction {
                                 )
                                 .into(),
                             );
-                            program.push(Self::Branch(address, body_offset).into());
+                            program.push(Self::BranchNot(address, body_offset).into());
                         }
                         Type::Float => {
                             program.push(
@@ -1800,7 +1811,7 @@ impl Instruction {
                                 Self::GreaterThanFloats(step_expr_address, address, address).into(),
                             );
                             program.push(
-                                Self::Branch(address, program.len() + program_offset + 4).into(),
+                                Self::BranchNot(address, program.len() + program_offset + 4).into(),
                             );
                             program.push(
                                 Self::GreaterThanFloats(
@@ -1810,7 +1821,7 @@ impl Instruction {
                                 )
                                 .into(),
                             );
-                            program.push(Self::Branch(address, body_offset).into());
+                            program.push(Self::BranchNot(address, body_offset).into());
                             program.push(Self::Jump(program.len() + program_offset + 3).into());
                             program.push(
                                 Self::GreaterThanFloats(
@@ -1820,7 +1831,7 @@ impl Instruction {
                                 )
                                 .into(),
                             );
-                            program.push(Self::Branch(address, body_offset).into());
+                            program.push(Self::BranchNot(address, body_offset).into());
                         }
                         Type::Integer => {
                             program.push(
@@ -1837,7 +1848,7 @@ impl Instruction {
                                     .into(),
                             );
                             program.push(
-                                Self::Branch(address, program.len() + program_offset + 4).into(),
+                                Self::BranchNot(address, program.len() + program_offset + 4).into(),
                             );
                             program.push(
                                 Self::GreaterThanIntegers(
@@ -1847,7 +1858,7 @@ impl Instruction {
                                 )
                                 .into(),
                             );
-                            program.push(Self::Branch(address, body_offset).into());
+                            program.push(Self::BranchNot(address, body_offset).into());
                             program.push(Self::Jump(program.len() + program_offset + 3).into());
                             program.push(
                                 Self::GreaterThanIntegers(
@@ -1857,7 +1868,7 @@ impl Instruction {
                                 )
                                 .into(),
                             );
-                            program.push(Self::Branch(address, body_offset).into());
+                            program.push(Self::BranchNot(address, body_offset).into());
                         }
                         _ => unreachable!(),
                     }
@@ -2128,7 +2139,7 @@ impl Instruction {
                         ));
 
                         program.push(
-                            Instruction::Branch(
+                            Instruction::BranchNot(
                                 test_expr_address,
                                 program.len() + program_offset + test_body.len() + 2,
                             )
@@ -2153,7 +2164,7 @@ impl Instruction {
                         program.extend(default_body.into_iter().map(Into::into));
                     } else {
                         if let Some((branch, expr, index)) = branch_to_fix {
-                            program[branch] = Instruction::Branch(expr, index).into();
+                            program[branch] = Instruction::BranchNot(expr, index).into();
                         }
 
                         if let Some(jump) = jumps_to_fix.last().copied() {
@@ -2242,6 +2253,104 @@ impl Instruction {
                     };
 
                     program.push(Self::Locate(col_expr_address, row_expr_address).into());
+                }
+                Syntax::Loop { test, body_ast } => {
+                    if let Some((true, test_while, test_expr)) = test {
+                        let test_offset = program_offset + program.len();
+                        let (test_expr_ty, test_expr_address) = Self::compile_expression(
+                            address,
+                            test_expr,
+                            &mut program,
+                            fns,
+                            subs,
+                            &vars,
+                        )?;
+
+                        assert!(test_expr_address <= address);
+
+                        if test_expr_ty != Type::Boolean {
+                            return Err(SyntaxError::from_location(
+                                test_expr.location(),
+                                format!(
+                                    "Unexpected {} type, must be boolean",
+                                    test_expr_ty.to_string().to_ascii_lowercase()
+                                ),
+                            ));
+                        }
+
+                        let body_offset = program_offset + program.len();
+                        let mut body = Self::compile_scope(
+                            body_ast,
+                            body_offset,
+                            address,
+                            fns,
+                            subs,
+                            vars.clone(),
+                        )?;
+
+                        if *test_while {
+                            program.push(
+                                Self::BranchNot(test_expr_address, body_offset + body.len() + 2)
+                                    .into(),
+                            );
+                        } else {
+                            program.push(
+                                Self::Branch(test_expr_address, body_offset + body.len() + 2)
+                                    .into(),
+                            );
+                        }
+
+                        program.append(&mut body);
+                        program.push(Self::Jump(test_offset).into());
+                    } else if let Some((false, test_while, test_expr)) = test {
+                        let body_offset = program_offset + program.len();
+                        program.append(&mut Self::compile_scope(
+                            body_ast,
+                            body_offset,
+                            address,
+                            fns,
+                            subs,
+                            vars.clone(),
+                        )?);
+
+                        let (test_expr_ty, test_expr_address) = Self::compile_expression(
+                            address,
+                            test_expr,
+                            &mut program,
+                            fns,
+                            subs,
+                            &vars,
+                        )?;
+
+                        assert!(test_expr_address <= address);
+
+                        if test_expr_ty != Type::Boolean {
+                            return Err(SyntaxError::from_location(
+                                test_expr.location(),
+                                format!(
+                                    "Unexpected {} type, must be boolean",
+                                    test_expr_ty.to_string().to_ascii_lowercase()
+                                ),
+                            ));
+                        }
+
+                        if *test_while {
+                            program.push(Self::Branch(test_expr_address, body_offset).into());
+                        } else {
+                            program.push(Self::BranchNot(test_expr_address, body_offset).into());
+                        }
+                    } else {
+                        let body_offset = program_offset + program.len();
+                        program.append(&mut Self::compile_scope(
+                            body_ast,
+                            body_offset,
+                            address,
+                            fns,
+                            subs,
+                            vars.clone(),
+                        )?);
+                        program.push(Self::Jump(body_offset).into());
+                    }
                 }
                 Syntax::Line(from_exprs, (to_x_expr, to_y_expr), color_expr) => {
                     let mut address = address;
@@ -3172,7 +3281,7 @@ impl Instruction {
                     }
 
                     let body_offset = program.len() + program_offset + 1;
-                    let body = Self::compile_scope(
+                    let mut body = Self::compile_scope(
                         body_ast,
                         body_offset,
                         address,
@@ -3181,9 +3290,10 @@ impl Instruction {
                         vars.clone(),
                     )?;
 
-                    program
-                        .push(Self::Branch(test_expr_address, body_offset + body.len() + 1).into());
-                    program.extend(body.into_iter().map(Into::into));
+                    program.push(
+                        Self::BranchNot(test_expr_address, body_offset + body.len() + 1).into(),
+                    );
+                    program.append(&mut body);
                     program.push(Self::Jump(test_offset).into());
                 }
                 Syntax::Yield => {

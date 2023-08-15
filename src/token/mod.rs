@@ -95,6 +95,7 @@ pub enum Token<'a> {
     ClearScreen(Span<'a>),
     Color(Span<'a>),
     Dimension(Span<'a>),
+    Do(Span<'a>),
     Else(Span<'a>),
     End(Span<'a>),
     For(Span<'a>),
@@ -105,6 +106,7 @@ pub enum Token<'a> {
     KeyDown(Span<'a>),
     Line(Span<'a>),
     Locate(Span<'a>),
+    Loop(Span<'a>),
     Next(Span<'a>),
     Palette(Span<'a>),
     Peek(Span<'a>),
@@ -119,8 +121,9 @@ pub enum Token<'a> {
     Then(Span<'a>),
     Timer(Span<'a>),
     To(Span<'a>),
+    Until(Span<'a>),
+    Wend(Span<'a>),
     While(Span<'a>),
-    WhileEnd(Span<'a>),
     Yield(Span<'a>),
     // Punctuation
     Colon(Span<'a>),
@@ -369,6 +372,7 @@ impl<'a> Token<'a> {
                     "CLS" => Self::ClearScreen(input),
                     "COLOR" => Self::Color(input),
                     "DIM" => Self::Dimension(input),
+                    "DO" => Self::Do(input),
                     "ELSE" => Self::Else(input),
                     "END" => Self::End(input),
                     "FOR" => Self::For(input),
@@ -379,6 +383,7 @@ impl<'a> Token<'a> {
                     "KEYDOWN" => Self::KeyDown(input),
                     "LINE" => Self::Line(input),
                     "LOCATE" => Self::Locate(input),
+                    "LOOP" => Self::Loop(input),
                     "NEXT" => Self::Next(input),
                     "PALETTE" => Self::Palette(input),
                     "PEEK" => Self::Peek(input),
@@ -393,8 +398,9 @@ impl<'a> Token<'a> {
                     "THEN" => Self::Then(input),
                     "TIMER" => Self::Timer(input),
                     "TO" => Self::To(input),
+                    "UNTIL" => Self::Until(input),
+                    "WEND" => Self::Wend(input),
                     "WHILE" => Self::While(input),
-                    "WEND" => Self::WhileEnd(input),
                     "YIELD" => Self::Yield(input),
                     "TRUE" => Self::BooleanLiteral(true, input),
                     "FALSE" => Self::BooleanLiteral(false, input),
@@ -442,6 +448,7 @@ impl<'a> Token<'a> {
             | Self::ClearScreen(s)
             | Self::Color(s)
             | Self::Dimension(s)
+            | Self::Do(s)
             | Self::Else(s)
             | Self::End(s)
             | Self::For(s)
@@ -452,6 +459,7 @@ impl<'a> Token<'a> {
             | Self::KeyDown(s)
             | Self::Line(s)
             | Self::Locate(s)
+            | Self::Loop(s)
             | Self::Next(s)
             | Self::Palette(s)
             | Self::Peek(s)
@@ -466,8 +474,9 @@ impl<'a> Token<'a> {
             | Self::Then(s)
             | Self::Timer(s)
             | Self::To(s)
+            | Self::Until(s)
+            | Self::Wend(s)
             | Self::While(s)
-            | Self::WhileEnd(s)
             | Self::Yield(s)
             | Self::Colon(s)
             | Self::Comma(s)
@@ -541,6 +550,7 @@ impl<'a> Debug for Token<'a> {
             Self::ClearScreen(..) => f.write_str("ClearScreen"),
             Self::Color(..) => f.write_str("Color"),
             Self::Dimension(..) => f.write_str("Dimension"),
+            Self::Do(..) => f.write_str("Do"),
             Self::End(..) => f.write_str("End"),
             Self::Else(..) => f.write_str("Else"),
             Self::For(..) => f.write_str("For"),
@@ -551,6 +561,7 @@ impl<'a> Debug for Token<'a> {
             Self::KeyDown(..) => f.write_str("KeyDown"),
             Self::Line(..) => f.write_str("Line"),
             Self::Locate(..) => f.write_str("Locate"),
+            Self::Loop(..) => f.write_str("Loop"),
             Self::Next(..) => f.write_str("Next"),
             Self::Palette(..) => f.write_str("Pallete"),
             Self::Peek(..) => f.write_str("Peek"),
@@ -565,8 +576,9 @@ impl<'a> Debug for Token<'a> {
             Self::Then(..) => f.write_str("Then"),
             Self::Timer(..) => f.write_str("Timer"),
             Self::To(..) => f.write_str("To"),
+            Self::Until(..) => f.write_str("Until"),
+            Self::Wend(..) => f.write_str("Wend"),
             Self::While(..) => f.write_str("While"),
-            Self::WhileEnd(..) => f.write_str("WhileEnd"),
             Self::Yield(..) => f.write_str("Yield"),
             Self::Colon(..) => f.write_str("Colon"),
             Self::Comma(..) => f.write_str("Comma"),

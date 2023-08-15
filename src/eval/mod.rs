@@ -1353,6 +1353,12 @@ impl Interpreter {
                 }
 
                 &Instruction::Branch(addr, program_index) => {
+                    if self.stack[addr].boolean() {
+                        self.program_index = program_index;
+                        continue;
+                    }
+                }
+                &Instruction::BranchNot(addr, program_index) => {
                     if !self.stack[addr].boolean() {
                         self.program_index = program_index;
                         continue;
