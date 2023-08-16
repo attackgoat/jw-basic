@@ -600,26 +600,24 @@ impl Interpreter {
 
         // TODO: Treat graphics data as u64 and blend 16x faster!
 
-        let Range {
-            start: src_x_start,
-            end: src_x_end,
-        } = (0 - x).max(0)..(Self::FRAMEBUFFER_WIDTH as i32 - x).min(width);
-        let Range {
-            start: src_y_start,
-            end: src_y_end,
-        } = (0 - y).max(0)..(Self::FRAMEBUFFER_HEIGHT as i32 - y).min(height);
+        let src_x = (0 - x).max(0)..(Self::FRAMEBUFFER_WIDTH as i32 - x).min(width);
 
-        for src_y in src_y_start..src_y_end {
-            let dst_y = (y + src_y) * Self::FRAMEBUFFER_WIDTH as i32;
+        if src_x.is_empty() {
+            return;
+        }
+
+        let src_y = (0 - y).max(0)..(Self::FRAMEBUFFER_HEIGHT as i32 - y).min(height);
+        self.graphics_dirty = !src_y.is_empty();
+
+        for src_y in src_y {
+            let dst_y = x + ((y + src_y) * Self::FRAMEBUFFER_WIDTH as i32);
             let src_y = src_y * width;
-            for src_x in src_x_start..src_x_end {
+            for src_x in src_x.clone() {
                 let src = data[(src_y + src_x) as usize];
-                let dst = &mut self.graphics_data[(dst_y + x + src_x) as usize];
+                let dst = &mut self.graphics_data[(dst_y + src_x) as usize];
                 blend_fn(src, dst);
             }
         }
-
-        self.graphics_dirty = true;
     }
 
     fn put_graphic_and(
