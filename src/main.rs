@@ -42,14 +42,18 @@ fn main() -> anyhow::Result<()> {
 
     let mut interpreter = Interpreter::new(&event_loop.device, program)?;
 
+    let mut never_ran = true;
     event_loop.run(|frame| {
         let was_running = interpreter.is_running();
+        if was_running {
+            never_ran = false;
+        }
 
         interpreter
             .update(frame.render_graph, frame.events)
             .unwrap();
 
-        if was_running && !interpreter.is_running() {
+        if (never_ran || was_running) && !interpreter.is_running() {
             interpreter.locate(0, Interpreter::TEXT_ROWS - 1);
             interpreter.print("Press any key to continue");
         }
