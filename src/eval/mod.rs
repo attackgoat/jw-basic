@@ -911,6 +911,20 @@ impl Interpreter {
                     );
                 }
 
+                &Instruction::ModulusBytes(val_addr, mod_addr, dst_addr) => {
+                    self.stack[dst_addr] =
+                        Value::Byte(self.stack[val_addr].byte() % self.stack[mod_addr].byte());
+                }
+                &Instruction::ModulusFloats(val_addr, mod_addr, dst_addr) => {
+                    self.stack[dst_addr] =
+                        Value::Float(self.stack[val_addr].float() % self.stack[mod_addr].float());
+                }
+                &Instruction::ModulusIntegers(val_addr, mod_addr, dst_addr) => {
+                    self.stack[dst_addr] = Value::Integer(
+                        self.stack[val_addr].integer() % self.stack[mod_addr].integer(),
+                    );
+                }
+
                 &Instruction::ConvertBooleanToByte(src, dst) => {
                     self.stack[dst] = Value::Byte(u8::from(self.stack[src].boolean()))
                 }

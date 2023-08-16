@@ -354,6 +354,18 @@ LOCATE row[, col]
     Moves the text output location of the following PRINT statements.
 
 
+numeric-expression1 MOD numeric-expression2
+
+    Divides one number by another and returns the remainder.
+
+    numeric-expression1, numeric-expression2:   Any numeric expressions.
+
+    Examples:
+
+        PRINT 19.0 MOD 6.7  'Output is 5.6000004
+        PRINT 21 MOD 2      'Output is 1
+
+
 PALETTE color, r, g, b
 
     Changes the currently active palette allowing for colorful animation without re-drawing the

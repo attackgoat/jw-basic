@@ -42,6 +42,10 @@ pub enum Instruction {
     DivideFloats(Address, Address, Address),
     DivideIntegers(Address, Address, Address),
 
+    ModulusBytes(Address, Address, Address),
+    ModulusFloats(Address, Address, Address),
+    ModulusIntegers(Address, Address, Address),
+
     NotBoolean(Address, Address),
     AndBooleans(Address, Address, Address),
     OrBooleans(Address, Address, Address),
@@ -970,6 +974,24 @@ impl Instruction {
                             ));
                         }
                     },
+                    Infix::Modulus => {
+                        program.push(
+                            match lhs_expr_ty {
+                                Type::Byte => Self::ModulusBytes,
+                                Type::Float => Self::ModulusFloats,
+                                Type::Integer => Self::ModulusIntegers,
+                                ty => {
+                                    return Err(SyntaxError::from_location(
+                                        expr.location(),
+                                        format!("Cannot modulus {ty} values"),
+                                    ));
+                                }
+                            }(
+                                lhs_expr_address, rhs_expr_address, address
+                            )
+                            .into(),
+                        );
+                    }
                     Infix::Bitwise(Bitwise::And) => match lhs_expr_ty {
                         Type::Boolean => {
                             program.push(

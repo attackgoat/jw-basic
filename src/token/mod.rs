@@ -108,6 +108,7 @@ pub enum Token<'a> {
     Line(Span<'a>),
     Locate(Span<'a>),
     Loop(Span<'a>),
+    Mod(Span<'a>),
     Next(Span<'a>),
     Palette(Span<'a>),
     Peek(Span<'a>),
@@ -385,6 +386,7 @@ impl<'a> Token<'a> {
                     "LINE" => Self::Line(input),
                     "LOCATE" => Self::Locate(input),
                     "LOOP" => Self::Loop(input),
+                    "MOD" => Self::Mod(input),
                     "NEXT" => Self::Next(input),
                     "PALETTE" => Self::Palette(input),
                     "PEEK" => Self::Peek(input),
@@ -461,6 +463,7 @@ impl<'a> Token<'a> {
             | Self::Line(s)
             | Self::Locate(s)
             | Self::Loop(s)
+            | Self::Mod(s)
             | Self::Next(s)
             | Self::Palette(s)
             | Self::Peek(s)
@@ -563,6 +566,7 @@ impl<'a> Debug for Token<'a> {
             Self::Line(..) => f.write_str("Line"),
             Self::Locate(..) => f.write_str("Locate"),
             Self::Loop(..) => f.write_str("Loop"),
+            Self::Mod(..) => f.write_str("Mod"),
             Self::Next(..) => f.write_str("Next"),
             Self::Palette(..) => f.write_str("Pallete"),
             Self::Peek(..) => f.write_str("Peek"),

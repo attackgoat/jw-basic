@@ -90,6 +90,7 @@ token!(key_down_token, KeyDown);
 token!(line_token, Line);
 token!(locate_token, Locate);
 token!(loop_token, Loop);
+token!(mod_token, Mod);
 token!(next_token, Next);
 token!(palette_token, Palette);
 token!(peek_token, Peek);

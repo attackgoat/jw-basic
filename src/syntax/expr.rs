@@ -2,9 +2,9 @@ use {
     super::{
         abs_token, add_op, and_op, bool_ty, cbool_token, cbyte_token, cfloat_token, cint_token,
         comma_punc, cos_token, cstr_token, debug_location, div_op, eq_op, f32_ty, gt_op, gte_op,
-        i32_ty, key_down_token, l_paren_punc, l_sq_bracket_punc, lt_op, lte_op, mul_op, ne_op,
-        not_op, or_op, peek_token, r_paren_punc, r_sq_bracket_punc, rnd_token, sin_token, str_ty,
-        sub_op, timer_token, u8_ty, xor_op, Literal, Span, Token, Tokens, Type, Variable,
+        i32_ty, key_down_token, l_paren_punc, l_sq_bracket_punc, lt_op, lte_op, mod_token, mul_op,
+        ne_op, not_op, or_op, peek_token, r_paren_punc, r_sq_bracket_punc, rnd_token, sin_token,
+        str_ty, sub_op, timer_token, u8_ty, xor_op, Literal, Span, Token, Tokens, Type, Variable,
     },
     nom::{
         branch::alt,
@@ -264,7 +264,7 @@ impl<'a> Expression<'a> {
 
     fn precedence(token: Token) -> usize {
         match token {
-            Token::And(_) | Token::Or(_) | Token::Xor(_) => 1,
+            Token::And(_) | Token::Mod(_) | Token::Or(_) | Token::Xor(_) => 1,
             Token::Equal(_)
             | Token::NotEqual(_)
             | Token::LessThanEqual(_)
@@ -455,6 +455,7 @@ pub enum Infix {
     Add,
     Subtract,
     Divide,
+    Modulus,
     Multiply,
     Bitwise(Bitwise),
     Relation(Relation),
@@ -467,6 +468,7 @@ impl Infix {
             map(sub_op, |_| Self::Subtract),
             map(div_op, |_| Self::Divide),
             map(mul_op, |_| Self::Multiply),
+            map(mod_token, |_| Self::Modulus),
             map(Bitwise::parse, Self::Bitwise),
             map(Relation::parse, Self::Relation),
         ))(tokens)
@@ -479,6 +481,7 @@ impl Debug for Infix {
             Self::Add => f.write_str("Add"),
             Self::Subtract => f.write_str("Subtract"),
             Self::Divide => f.write_str("Divide"),
+            Self::Modulus => f.write_str("Modulus"),
             Self::Multiply => f.write_str("Multiply"),
             Self::Bitwise(Bitwise::And) => f.write_str("And"),
             Self::Bitwise(Bitwise::Not) => f.write_str("Not"),
@@ -500,6 +503,7 @@ impl std::fmt::Display for Infix {
             Self::Add => f.write_str("+"),
             Self::Subtract => f.write_str("-"),
             Self::Divide => f.write_str("/"),
+            Self::Modulus => f.write_str("%"),
             Self::Multiply => f.write_str("*"),
             Self::Bitwise(r) => <dyn Debug>::fmt(r, f),
             Self::Relation(r) => <dyn Debug>::fmt(r, f),

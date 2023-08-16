@@ -215,6 +215,21 @@ fn locate() {
 }
 
 #[test]
+fn modulus() {
+    let res = Headless::execute("modulus.bas");
+
+    res.assert_printed((15, 0), (0, 0), "0");
+    res.assert_printed((15, 0), (1, 0), "10");
+    res.assert_printed((15, 0), (2, 0), "1");
+    res.assert_printed((15, 0), (3, 0), "0");
+    res.assert_printed((15, 0), (4, 0), "10");
+    res.assert_printed((15, 0), (5, 0), "1");
+    res.assert_printed((15, 0), (6, 0), "0");
+    res.assert_printed((15, 0), (7, 0), "10");
+    res.assert_printed((15, 0), (8, 0), "1");
+}
+
+#[test]
 fn peek_poke() {
     let mut res = Headless::execute("peek_poke.bas");
 
