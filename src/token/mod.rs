@@ -98,6 +98,7 @@ pub enum Token<'a> {
     Do(Span<'a>),
     Else(Span<'a>),
     End(Span<'a>),
+    Exit(Span<'a>),
     For(Span<'a>),
     Function(Span<'a>),
     Get(Span<'a>),
@@ -114,7 +115,6 @@ pub enum Token<'a> {
     Print(Span<'a>),
     Put(Span<'a>),
     Rectangle(Span<'a>),
-    Return(Span<'a>),
     Rnd(Span<'a>),
     Step(Span<'a>),
     Sub(Span<'a>),
@@ -375,6 +375,7 @@ impl<'a> Token<'a> {
                     "DO" => Self::Do(input),
                     "ELSE" => Self::Else(input),
                     "END" => Self::End(input),
+                    "EXIT" => Self::Exit(input),
                     "FOR" => Self::For(input),
                     "FUNCTION" => Self::Function(input),
                     "GET" => Self::Get(input),
@@ -391,7 +392,6 @@ impl<'a> Token<'a> {
                     "PRINT" => Self::Print(input),
                     "PUT" => Self::Put(input),
                     "RECTANGLE" => Self::Rectangle(input),
-                    "RETURN" => Self::Return(input),
                     "RND" => Self::Rnd(input),
                     "STEP" => Self::Step(input),
                     "SUB" => Self::Sub(input),
@@ -451,6 +451,7 @@ impl<'a> Token<'a> {
             | Self::Do(s)
             | Self::Else(s)
             | Self::End(s)
+            | Self::Exit(s)
             | Self::For(s)
             | Self::Function(s)
             | Self::Get(s)
@@ -467,7 +468,6 @@ impl<'a> Token<'a> {
             | Self::Print(s)
             | Self::Put(s)
             | Self::Rectangle(s)
-            | Self::Return(s)
             | Self::Rnd(s)
             | Self::Step(s)
             | Self::Sub(s)
@@ -551,8 +551,9 @@ impl<'a> Debug for Token<'a> {
             Self::Color(..) => f.write_str("Color"),
             Self::Dimension(..) => f.write_str("Dimension"),
             Self::Do(..) => f.write_str("Do"),
-            Self::End(..) => f.write_str("End"),
             Self::Else(..) => f.write_str("Else"),
+            Self::End(..) => f.write_str("End"),
+            Self::Exit(..) => f.write_str("End"),
             Self::For(..) => f.write_str("For"),
             Self::Function(..) => f.write_str("Function"),
             Self::Get(..) => f.write_str("Get"),
@@ -569,7 +570,6 @@ impl<'a> Debug for Token<'a> {
             Self::Print(..) => f.write_str("Print"),
             Self::Put(..) => f.write_str("Put"),
             Self::Rectangle(..) => f.write_str("Rectangle"),
-            Self::Return(..) => f.write_str("Return"),
             Self::Rnd(..) => f.write_str("Return"),
             Self::Step(..) => f.write_str("Step"),
             Self::Sub(..) => f.write_str("Sub"),
@@ -831,7 +831,7 @@ mod tests {
             Token::RightParenthesis(span(10, 1, input)),
             Token::LeftCurlyBracket(span(12, 1, input)),
             Token::EndOfLine(span(13, 1, input)),
-            Token::Return(span(14, 2, input)),
+            Token::Identifer("RETURN", span(14, 2, input)),
             Token::Identifer("a", span(21, 2, input)),
             Token::EndOfLine(span(22, 2, input)),
             Token::RightCurlyBracket(span(23, 3, input)),
@@ -844,7 +844,7 @@ mod tests {
             Token::RightParenthesis(span(41, 3, input)),
             Token::LeftCurlyBracket(span(43, 3, input)),
             Token::EndOfLine(span(44, 3, input)),
-            Token::Return(span(45, 4, input)),
+            Token::Identifer("RETURN", span(45, 4, input)),
             Token::Not(span(52, 4, input)),
             Token::Identifer("a", span(56, 4, input)),
             Token::EndOfLine(span(57, 4, input)),
@@ -858,7 +858,7 @@ mod tests {
             Token::RightParenthesis(span(75, 5, input)),
             Token::LeftCurlyBracket(span(77, 5, input)),
             Token::EndOfLine(span(78, 5, input)),
-            Token::Return(span(79, 6, input)),
+            Token::Identifer("RETURN", span(79, 6, input)),
             Token::IntegerLiteral(-30, span(86, 6, input)),
             Token::Divide(span(90, 6, input)),
             Token::IntegerLiteral(40, span(92, 6, input)),
@@ -875,12 +875,12 @@ mod tests {
             Token::RightParenthesis(span(117, 7, input)),
             Token::LeftCurlyBracket(span(119, 7, input)),
             Token::EndOfLine(span(120, 7, input)),
-            Token::Return(span(121, 8, input)),
+            Token::Identifer("RETURN", span(121, 8, input)),
             Token::BooleanLiteral(true, span(128, 8, input)),
             Token::EndOfLine(span(132, 8, input)),
             Token::RightCurlyBracket(span(133, 9, input)),
             Token::EndOfLine(span(134, 9, input)),
-            Token::Return(span(135, 10, input)),
+            Token::Identifer("RETURN", span(135, 10, input)),
             Token::BooleanLiteral(false, span(142, 10, input)),
         ];
 

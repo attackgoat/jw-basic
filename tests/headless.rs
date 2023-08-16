@@ -98,6 +98,20 @@ fn do_loop() {
 }
 
 #[test]
+fn exit() {
+    let res = Headless::execute("exit.bas");
+
+    res.assert_printed((15, 0), (0, 0), "1                               ");
+    res.assert_printed((15, 0), (1, 0), "2                               ");
+    res.assert_printed((15, 0), (2, 0), "3                               ");
+    res.assert_printed((15, 0), (3, 0), "4                               ");
+    res.assert_printed((15, 0), (4, 0), "5                               ");
+    res.assert_printed((15, 0), (5, 0), "6                               ");
+    res.assert_printed((15, 0), (6, 0), "7                               ");
+    res.assert_printed((15, 0), (7, 0), "8                               ");
+}
+
+#[test]
 fn for_next() {
     let res = Headless::execute("for_next.bas");
 

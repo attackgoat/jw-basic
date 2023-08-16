@@ -189,12 +189,12 @@ LOOP [{WHILE | UNTIL} condition]
         i% = 0
         PRINT "Value of i% at beginning "; i%
         DO WHILE i% < 10
-        i% = i% + 1
+            i% = i% + 1
         LOOP
         PRINT "Value of i% at end "; i%
 
 
-END [IF | FUNCTION | SUB]
+END {IF | FUNCTION | SUB}
 
     Ends a program, procedure or block.
 
@@ -202,6 +202,22 @@ END [IF | FUNCTION | SUB]
 
         PRINT "Game over."
         END
+
+
+EXIT {DO | FOR | WHILE | FUNCTION | SUB}
+
+    Exits a DO, FOR or WHILE loop or a FUNCTION or SUB procedure.
+
+    Examples:
+
+        i% = 0
+        DO
+            i% = i% + 1
+            IF i% = 500 THEN
+                EXIT DO
+            END IF
+        LOOP
+        PRINT "EXIT at"; i%
 
 
 FOR var = start TO end [STEP step]

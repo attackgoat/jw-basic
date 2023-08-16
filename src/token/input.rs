@@ -24,11 +24,11 @@ impl<'a> Tokens<'a> {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub fn is_empty(self) -> bool {
         self.tokens[self.start..self.end].is_empty()
     }
 
-    pub fn location(&self) -> Span<'a> {
+    pub fn location(self) -> Span<'a> {
         self.tokens[self.start].location()
     }
 }

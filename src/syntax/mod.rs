@@ -80,6 +80,7 @@ token!(dim_token, Dimension);
 token!(do_token, Do);
 token!(else_token, Else);
 token!(end_token, End);
+token!(exit_token, Exit);
 token!(for_token, For);
 token!(function_token, Function);
 token!(get_token, Get);
@@ -96,7 +97,6 @@ token!(poke_token, Poke);
 token!(print_token, Print);
 token!(put_token, Put);
 token!(rect_token, Rectangle);
-token!(return_token, Return);
 token!(rnd_token, Rnd);
 token!(step_token, Step);
 token!(sub_token, Sub);
@@ -134,6 +134,22 @@ fn parse_coord(tokens: Tokens) -> IResult<Tokens, (Expression, Expression)> {
         separated_pair(Expression::parse, comma_punc, Expression::parse),
         r_paren_punc,
     )(tokens)
+}
+
+#[derive(Clone, Copy)]
+#[cfg_attr(test, derive(PartialEq))]
+pub struct Exit<'a>(Span<'a>);
+
+impl<'a> Exit<'a> {
+    pub fn location(self) -> Span<'a> {
+        self.0
+    }
+}
+
+impl<'a> Debug for Exit<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        debug_location(f, self.0)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -296,6 +312,11 @@ pub enum Syntax<'a> {
         )>,
     ),
     End,
+    ExitDo(Exit<'a>),
+    ExitFor(Exit<'a>),
+    ExitFunction(Exit<'a>),
+    ExitSub(Exit<'a>),
+    ExitWhile(Exit<'a>),
     For(
         Variable<'a>,
         Expression<'a>,
@@ -389,6 +410,7 @@ impl<'a> Syntax<'a> {
                 alt((
                     Self::parse_call,
                     Self::parse_end,
+                    Self::parse_exit,
                     Self::parse_loop,
                     Self::parse_pset,
                 )),
@@ -500,6 +522,21 @@ impl<'a> Syntax<'a> {
 
     fn parse_end(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
         map(terminated(end_token, end_of_line_punc), |_| Self::End)(tokens)
+    }
+
+    fn parse_exit(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        preceded(
+            exit_token,
+            alt((
+                map(do_token, |_| Self::ExitDo(Exit(tokens.location()))),
+                map(for_token, |_| Self::ExitFor(Exit(tokens.location()))),
+                map(function_token, |_| {
+                    Self::ExitFunction(Exit(tokens.location()))
+                }),
+                map(sub_token, |_| Self::ExitSub(Exit(tokens.location()))),
+                map(while_token, |_| Self::ExitWhile(Exit(tokens.location()))),
+            )),
+        )(tokens)
     }
 
     fn parse_for(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
