@@ -3524,6 +3524,13 @@ impl Instruction {
                         subs,
                         vars.clone(),
                     )?;
+                    let body_len = body.len();
+
+                    for instr in &mut body {
+                        if matches!(instr, ScopeInstruction::ExitWhile(_)) {
+                            *instr = Self::Jump(body_offset + body_len + 1).into();
+                        }
+                    }
 
                     program.push(
                         Self::BranchNot(test_expr_address, body_offset + body.len() + 1).into(),

@@ -48,6 +48,14 @@ LOOP WHILE TRUE
 
 PRINT total
 
+WHILE TRUE
+    total = total + 1
+    EXIT WHILE
+    total = 0
+WEND
+
+PRINT total
+
 SUB TEST
     total = total + 1
     EXIT SUB

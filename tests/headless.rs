@@ -109,6 +109,7 @@ fn exit() {
     res.assert_printed((15, 0), (5, 0), "6                               ");
     res.assert_printed((15, 0), (6, 0), "7                               ");
     res.assert_printed((15, 0), (7, 0), "8                               ");
+    res.assert_printed((15, 0), (8, 0), "9                               ");
 }
 
 #[test]
