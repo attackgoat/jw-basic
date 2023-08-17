@@ -91,6 +91,7 @@ pub enum Token<'a> {
     Abs(Span<'a>),
     Sin(Span<'a>),
     Call(Span<'a>),
+    Case(Span<'a>),
     Cos(Span<'a>),
     ClearScreen(Span<'a>),
     Color(Span<'a>),
@@ -104,6 +105,7 @@ pub enum Token<'a> {
     Get(Span<'a>),
     Goto(Span<'a>),
     If(Span<'a>),
+    Is(Span<'a>),
     KeyDown(Span<'a>),
     Line(Span<'a>),
     Locate(Span<'a>),
@@ -117,6 +119,7 @@ pub enum Token<'a> {
     Put(Span<'a>),
     Rectangle(Span<'a>),
     Rnd(Span<'a>),
+    Select(Span<'a>),
     Step(Span<'a>),
     Sub(Span<'a>),
     Then(Span<'a>),
@@ -369,6 +372,7 @@ impl<'a> Token<'a> {
                     "ABS" => Self::Abs(input),
                     "SIN" => Self::Sin(input),
                     "CALL" => Self::Call(input),
+                    "CASE" => Self::Case(input),
                     "COS" => Self::Cos(input),
                     "CLS" => Self::ClearScreen(input),
                     "COLOR" => Self::Color(input),
@@ -382,6 +386,7 @@ impl<'a> Token<'a> {
                     "GET" => Self::Get(input),
                     "GOTO" => Self::Goto(input),
                     "IF" => Self::If(input),
+                    "IS" => Self::Is(input),
                     "KEYDOWN" => Self::KeyDown(input),
                     "LINE" => Self::Line(input),
                     "LOCATE" => Self::Locate(input),
@@ -395,6 +400,7 @@ impl<'a> Token<'a> {
                     "PUT" => Self::Put(input),
                     "RECTANGLE" => Self::Rectangle(input),
                     "RND" => Self::Rnd(input),
+                    "SELECT" => Self::Select(input),
                     "STEP" => Self::Step(input),
                     "SUB" => Self::Sub(input),
                     "THEN" => Self::Then(input),
@@ -446,6 +452,7 @@ impl<'a> Token<'a> {
             | Self::Abs(s)
             | Self::Sin(s)
             | Self::Call(s)
+            | Self::Case(s)
             | Self::Cos(s)
             | Self::ClearScreen(s)
             | Self::Color(s)
@@ -459,6 +466,7 @@ impl<'a> Token<'a> {
             | Self::Get(s)
             | Self::Goto(s)
             | Self::If(s)
+            | Self::Is(s)
             | Self::KeyDown(s)
             | Self::Line(s)
             | Self::Locate(s)
@@ -472,6 +480,7 @@ impl<'a> Token<'a> {
             | Self::Put(s)
             | Self::Rectangle(s)
             | Self::Rnd(s)
+            | Self::Select(s)
             | Self::Step(s)
             | Self::Sub(s)
             | Self::Then(s)
@@ -549,6 +558,7 @@ impl<'a> Debug for Token<'a> {
             Self::Abs(..) => f.write_str("Abs"),
             Self::Sin(..) => f.write_str("Sin"),
             Self::Call(..) => f.write_str("Call"),
+            Self::Case(..) => f.write_str("Case"),
             Self::Cos(..) => f.write_str("Cos"),
             Self::ClearScreen(..) => f.write_str("ClearScreen"),
             Self::Color(..) => f.write_str("Color"),
@@ -562,6 +572,7 @@ impl<'a> Debug for Token<'a> {
             Self::Get(..) => f.write_str("Get"),
             Self::Goto(..) => f.write_str("Goto"),
             Self::If(..) => f.write_str("If"),
+            Self::Is(..) => f.write_str("Is"),
             Self::KeyDown(..) => f.write_str("KeyDown"),
             Self::Line(..) => f.write_str("Line"),
             Self::Locate(..) => f.write_str("Locate"),
@@ -575,6 +586,7 @@ impl<'a> Debug for Token<'a> {
             Self::Put(..) => f.write_str("Put"),
             Self::Rectangle(..) => f.write_str("Rectangle"),
             Self::Rnd(..) => f.write_str("Return"),
+            Self::Select(..) => f.write_str("Select"),
             Self::Step(..) => f.write_str("Step"),
             Self::Sub(..) => f.write_str("Sub"),
             Self::Then(..) => f.write_str("Then"),

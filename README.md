@@ -445,6 +445,41 @@ RND[!][()]
         PRINT "Roll of two dice: "; x%; "and "; y%
 
 
+SELECT CASE testexpression
+    CASE expressionlist1
+        [statementblock-1]
+    CASE expressionlist2
+        [statementblock-2]...
+    CASE ELSE
+        [statementblock-n]
+END SELECT
+
+    Executes one of several statement blocks depending on the value of an expression. The
+    expressionlist arguments can have any of these forms or a combination of them, separated by
+    commas:
+
+        expression[, expression]...
+        expression TO expression
+        IS relational-operator expression
+
+    testexpression:     Any expression.
+    expression:         Any expression which evaluates to same type as testexpression.
+    relation-operator:  One of the following relational operators: <, <=, >, >=, <>, or =. Boolean
+                        and string expressions may only use <> and = operators.
+
+    Examples:
+
+        someValue = 45.0
+        SELECT CASE someValue
+            CASE IS <= 20.0: PRINT "Too low!"
+            CASE someValue - 5.0 TO someValue + 5.0: PRINT "Close enough!"
+            CASE IS > 100.0
+                PRINT "Too high!"
+            CASE ELSE
+                PRINT "Over, but not too high!"
+        END SELECT
+
+
 SUB name[([var{type}][, var{type}] ... )]
     [..]
 END SUB

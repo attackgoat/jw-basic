@@ -1,8 +1,8 @@
 use {
     crate::{
         syntax::{
-            Bitwise, Exit, Expression, Identifier, Infix, Label, Literal, Prefix, Print, PutAction,
-            Relation, Syntax, SyntaxError, Type, Variable,
+            Bitwise, Case, Exit, Expression, Identifier, Infix, Label, Literal, Prefix, Print,
+            PutAction, Relation, Syntax, SyntaxError, Type, Variable,
         },
         token::{location_string, Token, Tokens},
     },
@@ -1092,7 +1092,7 @@ impl Instruction {
                             ));
                         }
                     },
-                    Infix::Relation(Relation::Equal) => match lhs_expr_ty {
+                    Infix::Relation(Relation::Equal(_)) => match lhs_expr_ty {
                         Type::Boolean => {
                             program.push(
                                 Self::EqualBooleans(lhs_expr_address, rhs_expr_address, address)
@@ -1124,7 +1124,7 @@ impl Instruction {
                             );
                         }
                     },
-                    Infix::Relation(Relation::NotEqual) => match lhs_expr_ty {
+                    Infix::Relation(Relation::NotEqual(_)) => match lhs_expr_ty {
                         Type::Boolean => {
                             program.push(
                                 Self::NotEqualBooleans(lhs_expr_address, rhs_expr_address, address)
@@ -1156,7 +1156,7 @@ impl Instruction {
                             );
                         }
                     },
-                    Infix::Relation(Relation::GreaterThanEqual) => match lhs_expr_ty {
+                    Infix::Relation(Relation::GreaterThanEqual(_)) => match lhs_expr_ty {
                         Type::Byte => {
                             program.push(
                                 Self::GreaterThanEqualBytes(
@@ -1194,7 +1194,7 @@ impl Instruction {
                             ));
                         }
                     },
-                    Infix::Relation(Relation::GreaterThan) => match lhs_expr_ty {
+                    Infix::Relation(Relation::GreaterThan(_)) => match lhs_expr_ty {
                         Type::Byte => {
                             program.push(
                                 Self::GreaterThanBytes(lhs_expr_address, rhs_expr_address, address)
@@ -1228,7 +1228,7 @@ impl Instruction {
                             ));
                         }
                     },
-                    Infix::Relation(Relation::LessThanEqual) => match lhs_expr_ty {
+                    Infix::Relation(Relation::LessThanEqual(_)) => match lhs_expr_ty {
                         Type::Byte => {
                             // Notice lhs and rhs switched!
                             program.push(
@@ -1269,7 +1269,7 @@ impl Instruction {
                             ));
                         }
                     },
-                    Infix::Relation(Relation::LessThan) => match lhs_expr_ty {
+                    Infix::Relation(Relation::LessThan(_)) => match lhs_expr_ty {
                         Type::Byte => {
                             // Notice lhs and rhs switched!
                             program.push(
@@ -1802,7 +1802,7 @@ impl Instruction {
 
                     assert!(start_expr_address <= address);
 
-                    if !matches!(start_expr_ty, Type::Byte | Type::Float | Type::Integer) {
+                    if !start_expr_ty.is_numeric() {
                         return Err(SyntaxError::from_location(
                             start_expr.location(),
                             format!(
@@ -2313,7 +2313,7 @@ impl Instruction {
                         program.push(Instruction::Jump(0).into());
                     }
 
-                    if let Some(default) = default {
+                    if !default.is_empty() {
                         let default_body = Self::compile_scope(
                             default,
                             program.len() + program_offset,
@@ -3474,6 +3474,296 @@ impl Instruction {
                         .into(),
                     );
                 }
+                Syntax::Select {
+                    test_expr,
+                    test_cases,
+                    default_ast,
+                } => {
+                    let mut address = address;
+                    let (test_expr_ty, test_expr_address) = Self::compile_expression(
+                        address,
+                        test_expr,
+                        program_offset,
+                        &mut program,
+                        fns,
+                        subs,
+                        &vars,
+                    )?;
+
+                    assert!(test_expr_address <= address);
+
+                    if test_expr_address == address {
+                        address += 1;
+                    }
+
+                    let mut jumps =
+                        Vec::with_capacity(test_cases.len() + !default_ast.is_empty() as usize);
+                    for (test_cases, test_case_ast) in test_cases {
+                        for test_case in test_cases {
+                            match test_case {
+                                Case::RangeFull(lower_bound_expr, upper_bound_expr) => {
+                                    let (lower_bound_expr_ty, lower_bound_expr_address) =
+                                        Self::compile_expression(
+                                            address,
+                                            lower_bound_expr,
+                                            program_offset,
+                                            &mut program,
+                                            fns,
+                                            subs,
+                                            &vars,
+                                        )?;
+
+                                    assert!(lower_bound_expr_address <= address);
+
+                                    if lower_bound_expr_ty != test_expr_ty {
+                                        return Err(SyntaxError::from_location(
+                                            lower_bound_expr.location(),
+                                            format!(
+                                                "Unexpected {} type, must be {}",
+                                                lower_bound_expr_ty
+                                                    .to_string()
+                                                    .to_ascii_lowercase(),
+                                                test_expr_ty.to_string().to_ascii_lowercase()
+                                            ),
+                                        ));
+                                    } else if !lower_bound_expr_ty.is_numeric() {
+                                        return Err(SyntaxError::from_location(
+                                            lower_bound_expr.location(),
+                                            format!(
+                                                "Unexpected {} type, must be numeric",
+                                                lower_bound_expr_ty
+                                                    .to_string()
+                                                    .to_ascii_lowercase()
+                                            ),
+                                        ));
+                                    }
+
+                                    if lower_bound_expr_address == address {
+                                        address += 1;
+                                    }
+
+                                    let (upper_bound_expr_ty, upper_bound_expr_address) =
+                                        Self::compile_expression(
+                                            address,
+                                            upper_bound_expr,
+                                            program_offset,
+                                            &mut program,
+                                            fns,
+                                            subs,
+                                            &vars,
+                                        )?;
+
+                                    assert!(upper_bound_expr_address <= address);
+
+                                    if upper_bound_expr_ty != test_expr_ty {
+                                        return Err(SyntaxError::from_location(
+                                            upper_bound_expr.location(),
+                                            format!(
+                                                "Unexpected {} type, must be {}",
+                                                upper_bound_expr_ty
+                                                    .to_string()
+                                                    .to_ascii_lowercase(),
+                                                test_expr_ty.to_string().to_ascii_lowercase()
+                                            ),
+                                        ));
+                                    } else if !upper_bound_expr_ty.is_numeric() {
+                                        return Err(SyntaxError::from_location(
+                                            upper_bound_expr.location(),
+                                            format!(
+                                                "Unexpected {} type, must be numeric",
+                                                upper_bound_expr_ty
+                                                    .to_string()
+                                                    .to_ascii_lowercase()
+                                            ),
+                                        ));
+                                    }
+
+                                    if upper_bound_expr_address == address {
+                                        address += 1;
+                                    }
+
+                                    program.push(
+                                        match test_expr_ty {
+                                            Type::Byte => Self::GreaterThanBytes,
+                                            Type::Float => Self::GreaterThanFloats,
+                                            Type::Integer => Self::GreaterThanIntegers,
+                                            _ => unreachable!(),
+                                        }(
+                                            lower_bound_expr_address, test_expr_address, address
+                                        )
+                                        .into(),
+                                    );
+                                    program.push(
+                                        match test_expr_ty {
+                                            Type::Byte => Self::GreaterThanBytes,
+                                            Type::Float => Self::GreaterThanFloats,
+                                            Type::Integer => Self::GreaterThanIntegers,
+                                            _ => unreachable!(),
+                                        }(
+                                            test_expr_address, upper_bound_expr_address, address + 1
+                                        )
+                                        .into(),
+                                    );
+                                    program.push(
+                                        Self::OrBooleans(address, address + 1, address).into(),
+                                    );
+                                }
+                                Case::Relation(relation, relation_expr) => {
+                                    if !test_expr_ty.is_numeric()
+                                        && !matches!(
+                                            relation,
+                                            Relation::Equal(_) | Relation::NotEqual(_)
+                                        )
+                                    {
+                                        return Err(SyntaxError::from_location(
+                                            relation.location(),
+                                            format!(
+                                                "Unexpected {} relation, must be = or <> when type is {}",
+                                                relation,test_expr_ty
+                                                    .to_string()
+                                                    .to_ascii_lowercase()
+                                            ),
+                                        ));
+                                    }
+
+                                    let (relation_expr_ty, relation_expr_address) =
+                                        Self::compile_expression(
+                                            address,
+                                            relation_expr,
+                                            program_offset,
+                                            &mut program,
+                                            fns,
+                                            subs,
+                                            &vars,
+                                        )?;
+
+                                    assert!(relation_expr_address <= address);
+
+                                    if relation_expr_ty != test_expr_ty {
+                                        return Err(SyntaxError::from_location(
+                                            relation_expr.location(),
+                                            format!(
+                                                "Unexpected {} type, must be {}",
+                                                relation_expr_ty.to_string().to_ascii_lowercase(),
+                                                test_expr_ty.to_string().to_ascii_lowercase()
+                                            ),
+                                        ));
+                                    }
+
+                                    if relation_expr_address == address {
+                                        address += 1;
+                                    }
+
+                                    // Swap the order of test/relation expressions if we're doing >
+                                    // or >= because we don't have < or <= instructions.
+                                    let (test_expr_address, relation_expr_address) = if matches!(
+                                        relation,
+                                        Relation::GreaterThan(_) | Relation::GreaterThanEqual(_)
+                                    ) {
+                                        (relation_expr_address, test_expr_address)
+                                    } else {
+                                        (test_expr_address, relation_expr_address)
+                                    };
+
+                                    program.push(
+                                        match (relation, test_expr_ty) {
+                                            (Relation::Equal(_), Type::Boolean) => {
+                                                Self::NotEqualBooleans
+                                            }
+                                            (Relation::Equal(_), Type::Byte) => Self::NotEqualBytes,
+                                            (Relation::Equal(_), Type::Float) => {
+                                                Self::NotEqualFloats
+                                            }
+                                            (Relation::Equal(_), Type::Integer) => {
+                                                Self::NotEqualIntegers
+                                            }
+                                            (Relation::Equal(_), Type::String) => {
+                                                Self::NotEqualStrings
+                                            }
+                                            (
+                                                Relation::GreaterThan(_) | Relation::LessThan(_),
+                                                Type::Byte,
+                                            ) => Self::GreaterThanEqualBytes,
+                                            (
+                                                Relation::GreaterThan(_) | Relation::LessThan(_),
+                                                Type::Float,
+                                            ) => Self::GreaterThanEqualFloats,
+                                            (
+                                                Relation::GreaterThan(_) | Relation::LessThan(_),
+                                                Type::Integer,
+                                            ) => Self::GreaterThanEqualIntegers,
+                                            (
+                                                Relation::GreaterThanEqual(_)
+                                                | Relation::LessThanEqual(_),
+                                                Type::Byte,
+                                            ) => Self::GreaterThanBytes,
+                                            (
+                                                Relation::GreaterThanEqual(_)
+                                                | Relation::LessThanEqual(_),
+                                                Type::Float,
+                                            ) => Self::GreaterThanFloats,
+                                            (
+                                                Relation::GreaterThanEqual(_)
+                                                | Relation::LessThanEqual(_),
+                                                Type::Integer,
+                                            ) => Self::GreaterThanIntegers,
+                                            (Relation::NotEqual(_), Type::Boolean) => {
+                                                Self::EqualBooleans
+                                            }
+                                            (Relation::NotEqual(_), Type::Byte) => Self::EqualBytes,
+                                            (Relation::NotEqual(_), Type::Float) => {
+                                                Self::EqualFloats
+                                            }
+                                            (Relation::NotEqual(_), Type::Integer) => {
+                                                Self::EqualIntegers
+                                            }
+                                            (Relation::NotEqual(_), Type::String) => {
+                                                Self::EqualStrings
+                                            }
+                                            _ => unreachable!(),
+                                        }(
+                                            test_expr_address, relation_expr_address, address
+                                        )
+                                        .into(),
+                                    );
+                                }
+                            }
+
+                            let mut test_case_ast = Self::compile_scope(
+                                test_case_ast,
+                                program_offset + program.len() + 1,
+                                address,
+                                fns,
+                                subs,
+                                vars.clone(),
+                            )?;
+
+                            program.push(
+                                Self::Branch(
+                                    address,
+                                    program_offset + program.len() + test_case_ast.len() + 2,
+                                )
+                                .into(),
+                            );
+                            program.append(&mut test_case_ast);
+                            jumps.push(program.len());
+                            program.push(Self::Jump(0).into());
+                        }
+                    }
+
+                    program.append(&mut Self::compile_scope(
+                        default_ast,
+                        program_offset + program.len(),
+                        address,
+                        fns,
+                        subs,
+                        vars.clone(),
+                    )?);
+
+                    for jump in jumps {
+                        program[jump] = Self::Jump(program_offset + program.len()).into();
+                    }
+                }
                 Syntax::Sub(id, args, body_ast) => {
                     if program_offset != 0 {
                         return Err(SyntaxError::from_location(
@@ -3568,7 +3858,6 @@ impl Instruction {
                 Syntax::Yield => {
                     program.push(Instruction::Yield.into());
                 }
-                s => unimplemented!("{:?}", s),
             }
         }
 

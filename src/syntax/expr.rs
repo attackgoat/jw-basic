@@ -25,7 +25,7 @@ pub enum Expression<'a> {
     Tuple(Vec<Self>, Span<'a>),
     Variable(Variable<'a>),
     // Operations
-    Infix(Infix, Box<Self>, Box<Self>, Span<'a>),
+    Infix(Infix<'a>, Box<Self>, Box<Self>, Span<'a>),
     Prefix(Prefix, Box<Self>, Span<'a>),
     // Functions
     Function(Variable<'a>, Vec<Self>, Span<'a>),
@@ -451,18 +451,18 @@ impl Debug for Prefix {
 
 #[derive(Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq))]
-pub enum Infix {
+pub enum Infix<'a> {
     Add,
     Subtract,
     Divide,
     Modulus,
     Multiply,
     Bitwise(Bitwise),
-    Relation(Relation),
+    Relation(Relation<'a>),
 }
 
-impl Infix {
-    fn parse(tokens: Tokens) -> IResult<Tokens, Self> {
+impl<'a> Infix<'a> {
+    fn parse(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
         alt((
             map(add_op, |_| Self::Add),
             map(sub_op, |_| Self::Subtract),
@@ -475,7 +475,7 @@ impl Infix {
     }
 }
 
-impl Debug for Infix {
+impl<'a> Debug for Infix<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::Add => f.write_str("Add"),
@@ -487,17 +487,17 @@ impl Debug for Infix {
             Self::Bitwise(Bitwise::Not) => f.write_str("Not"),
             Self::Bitwise(Bitwise::Or) => f.write_str("Or"),
             Self::Bitwise(Bitwise::Xor) => f.write_str("Xor"),
-            Self::Relation(Relation::Equal) => f.write_str("Equal"),
-            Self::Relation(Relation::GreaterThan) => f.write_str("GreaterThan"),
-            Self::Relation(Relation::GreaterThanEqual) => f.write_str("GreaterThanEqual"),
-            Self::Relation(Relation::LessThan) => f.write_str("LessThan"),
-            Self::Relation(Relation::LessThanEqual) => f.write_str("LessThanEqual"),
-            Self::Relation(Relation::NotEqual) => f.write_str("NotEqual"),
+            Self::Relation(Relation::Equal(_)) => f.write_str("Equal"),
+            Self::Relation(Relation::GreaterThan(_)) => f.write_str("GreaterThan"),
+            Self::Relation(Relation::GreaterThanEqual(_)) => f.write_str("GreaterThanEqual"),
+            Self::Relation(Relation::LessThan(_)) => f.write_str("LessThan"),
+            Self::Relation(Relation::LessThanEqual(_)) => f.write_str("LessThanEqual"),
+            Self::Relation(Relation::NotEqual(_)) => f.write_str("NotEqual"),
         }
     }
 }
 
-impl std::fmt::Display for Infix {
+impl<'a> std::fmt::Display for Infix<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Add => f.write_str("+"),
@@ -544,37 +544,48 @@ impl std::fmt::Display for Bitwise {
 
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
-pub enum Relation {
-    Equal,
-    NotEqual,
-    GreaterThanEqual,
-    LessThanEqual,
-    GreaterThan,
-    LessThan,
+pub enum Relation<'a> {
+    Equal(Span<'a>),
+    NotEqual(Span<'a>),
+    GreaterThanEqual(Span<'a>),
+    LessThanEqual(Span<'a>),
+    GreaterThan(Span<'a>),
+    LessThan(Span<'a>),
 }
 
-impl Relation {
-    fn parse(tokens: Tokens) -> IResult<Tokens, Self> {
+impl<'a> Relation<'a> {
+    pub fn location(self) -> Span<'a> {
+        match self {
+            Self::Equal(res)
+            | Self::GreaterThan(res)
+            | Self::GreaterThanEqual(res)
+            | Self::LessThan(res)
+            | Self::LessThanEqual(res)
+            | Self::NotEqual(res) => res,
+        }
+    }
+
+    pub fn parse(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
         alt((
-            map(eq_op, |_| Self::Equal),
-            map(ne_op, |_| Self::NotEqual),
-            map(gte_op, |_| Self::GreaterThanEqual),
-            map(lte_op, |_| Self::LessThanEqual),
-            map(gt_op, |_| Self::GreaterThan),
-            map(lt_op, |_| Self::LessThan),
+            map(eq_op, |_| Self::Equal(tokens.location())),
+            map(ne_op, |_| Self::NotEqual(tokens.location())),
+            map(gte_op, |_| Self::GreaterThanEqual(tokens.location())),
+            map(lte_op, |_| Self::LessThanEqual(tokens.location())),
+            map(gt_op, |_| Self::GreaterThan(tokens.location())),
+            map(lt_op, |_| Self::LessThan(tokens.location())),
         ))(tokens)
     }
 }
 
-impl std::fmt::Display for Relation {
+impl<'a> std::fmt::Display for Relation<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            Self::Equal => "=",
-            Self::NotEqual => "<>",
-            Self::GreaterThanEqual => ">=",
-            Self::LessThanEqual => "<=",
-            Self::GreaterThan => ">",
-            Self::LessThan => "<",
+            Self::Equal(_) => "=",
+            Self::NotEqual(_) => "<>",
+            Self::GreaterThanEqual(_) => ">=",
+            Self::LessThanEqual(_) => "<=",
+            Self::GreaterThan(_) => ">",
+            Self::LessThan(_) => "<",
         })
     }
 }
@@ -664,13 +675,13 @@ mod tests {
         let expected = Expression::Infix(
             Infix::Bitwise(Bitwise::And),
             Box::new(Expression::Infix(
-                Infix::Relation(Relation::Equal),
+                Infix::Relation(Relation::Equal(span(2, 1, input))),
                 Box::new(Expression::Literal(Literal::Integer(1, span(0, 1, input)))),
                 Box::new(Expression::Literal(Literal::Integer(1, span(4, 1, input)))),
                 span(2, 1, input),
             )),
             Box::new(Expression::Infix(
-                Infix::Relation(Relation::Equal),
+                Infix::Relation(Relation::Equal(span(15, 1, input))),
                 Box::new(Expression::Literal(Literal::Boolean(
                     true,
                     span(10, 1, input),

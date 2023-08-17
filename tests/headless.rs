@@ -309,6 +309,52 @@ fn rnd() {
 }
 
 #[test]
+fn select() {
+    let mut res = Headless::execute("select.bas");
+
+    res.assert_printed((15, 0), (0, 0), "0 is 0                          ");
+    res.assert_printed((15, 0), (1, 0), "1 is 1                          ");
+    res.assert_printed((15, 0), (2, 0), "2 is 2 or 3                     ");
+    res.assert_printed((15, 0), (3, 0), "3 is 2 or 3                     ");
+    res.assert_printed((15, 0), (4, 0), "4 is 4 to 5                     ");
+    res.assert_printed((15, 0), (5, 0), "5 is 4 to 5                     ");
+    res.assert_printed((15, 0), (6, 0), "6 is < 7                        ");
+    res.assert_printed((15, 0), (7, 0), "7 is <= 8                       ");
+    res.assert_printed((15, 0), (8, 0), "8 is <= 8                       ");
+    res.assert_printed((15, 0), (9, 0), "9 is <> 10                      ");
+    res.assert_printed((15, 0), (10, 0), "10 is 10                       ");
+    res.assert_printed((15, 0), (11, 0), "11 is <> 10                    ");
+    res.assert_printed((15, 0), (12, 0), "12 is >= 12                    ");
+    res.assert_printed((15, 0), (13, 0), "13 is >= 12                    ");
+    res.assert_printed((15, 0), (14, 0), "14 is > 13                     ");
+
+    res.update(&[]);
+
+    res.assert_printed((15, 0), (0, 0), "foo-bar                         ");
+    res.assert_printed((15, 0), (1, 0), "baz-buz                         ");
+
+    res.update(&[]);
+
+    res.assert_printed((15, 0), (0, 0), "9                               ");
+    res.assert_printed((15, 0), (1, 0), "X                               ");
+    res.assert_printed((15, 0), (2, 0), "11                              ");
+    res.assert_printed((15, 0), (3, 0), "12                              ");
+    res.assert_printed((15, 0), (4, 0), "13                              ");
+    res.assert_printed((15, 0), (5, 0), "X                               ");
+    res.assert_printed((15, 0), (6, 0), "15                              ");
+    res.assert_printed((15, 0), (7, 0), "B                               ");
+    res.assert_printed((15, 0), (8, 0), "B                               ");
+
+    res.update(&[]);
+
+    res.assert_printed((15, 0), (0, 0), "X                               ");
+    res.assert_printed((15, 0), (1, 0), "Y                               ");
+    res.assert_printed((15, 0), (2, 0), "Y                               ");
+    res.assert_printed((15, 0), (3, 0), "Y                               ");
+    res.assert_printed((15, 0), (4, 0), "X                               ");
+}
+
+#[test]
 fn sub() {
     let res = Headless::execute("sub.bas");
 

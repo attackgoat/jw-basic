@@ -73,6 +73,7 @@ token!(cstr_token, ConvertString);
 token!(abs_token, Abs);
 token!(sin_token, Sin);
 token!(call_token, Call);
+token!(case_token, Case);
 token!(cos_token, Cos);
 token!(cls_token, ClearScreen);
 token!(color_token, Color);
@@ -86,6 +87,7 @@ token!(function_token, Function);
 token!(get_token, Get);
 token!(goto_token, Goto);
 token!(if_token, If);
+token!(is_token, Is);
 token!(key_down_token, KeyDown);
 token!(line_token, Line);
 token!(locate_token, Locate);
@@ -99,6 +101,7 @@ token!(print_token, Print);
 token!(put_token, Put);
 token!(rect_token, Rectangle);
 token!(rnd_token, Rnd);
+token!(select_token, Select);
 token!(step_token, Step);
 token!(sub_token, Sub);
 token!(then_token, Then);
@@ -182,9 +185,29 @@ impl<'a> Debug for Identifier<'a> {
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum Case<'a> {
-    Expression(Expression<'a>),
     RangeFull(Expression<'a>, Expression<'a>),
-    Relational(Relation, Expression<'a>),
+    Relation(Relation<'a>, Expression<'a>),
+}
+
+impl<'a> Case<'a> {
+    fn parse(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        alt((
+            map(
+                separated_pair(Expression::parse, to_token, Expression::parse),
+                |(start, end)| Self::RangeFull(start, end),
+            ),
+            preceded(
+                is_token,
+                map(
+                    pair(Relation::parse, Expression::parse),
+                    |(relation, expr)| Self::Relation(relation, expr),
+                ),
+            ),
+            map(Expression::parse, |expr: Expression<'_>| {
+                Self::Relation(Relation::Equal(tokens.location()), expr)
+            }),
+        ))(tokens)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -335,7 +358,7 @@ pub enum Syntax<'a> {
     Goto(Label<'a>),
     If {
         tests: Vec<(Expression<'a>, Ast<'a>)>,
-        default: Option<Ast<'a>>,
+        default: Ast<'a>,
     },
     Label(Label<'a>),
     Line(
@@ -371,9 +394,9 @@ pub enum Syntax<'a> {
         Option<Expression<'a>>,
     ),
     Select {
-        test: Expression<'a>,
-        cases: Vec<(Vec<Case<'a>>, Ast<'a>)>,
-        default: Option<(Case<'a>, Ast<'a>)>,
+        test_expr: Expression<'a>,
+        test_cases: Vec<(Vec<Case<'a>>, Ast<'a>)>,
+        default_ast: Ast<'a>,
     },
     Sub(Identifier<'a>, Vec<Variable<'a>>, Ast<'a>),
     While {
@@ -414,6 +437,7 @@ impl<'a> Syntax<'a> {
                     Self::parse_exit,
                     Self::parse_loop,
                     Self::parse_pset,
+                    Self::parse_select,
                 )),
             )),
             many0(end_of_line_punc),
@@ -653,7 +677,10 @@ impl<'a> Syntax<'a> {
             tuple((
                 pair(if_expr_then, Self::parse),
                 many0(pair(else_if_expr_then, Self::parse)),
-                opt(preceded(else_then, Self::parse)),
+                map(
+                    opt(preceded(else_then, Self::parse)),
+                    Option::unwrap_or_default,
+                ),
                 end_if,
             )),
             |(test, mut tests, default, ())| {
@@ -851,6 +878,42 @@ impl<'a> Syntax<'a> {
         )(tokens)
     }
 
+    fn parse_select(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
+        map(
+            delimited(
+                pair(select_token, case_token),
+                separated_pair(
+                    Expression::parse,
+                    many1(end_of_line_punc),
+                    pair(
+                        many0(separated_pair(
+                            preceded(case_token, separated_list1(comma_punc, Case::parse)),
+                            many1(alt((colon_punc, end_of_line_punc))),
+                            Self::parse,
+                        )),
+                        map(
+                            opt(preceded(
+                                tuple((
+                                    case_token,
+                                    else_token,
+                                    many1(alt((colon_punc, end_of_line_punc))),
+                                )),
+                                Self::parse,
+                            )),
+                            Option::unwrap_or_default,
+                        ),
+                    ),
+                ),
+                tuple((end_token, select_token)),
+            ),
+            |(test_expr, (test_cases, default_ast))| Self::Select {
+                test_expr,
+                test_cases,
+                default_ast,
+            },
+        )(tokens)
+    }
+
     fn parse_sub(tokens: Tokens<'a>) -> IResult<Tokens<'a>, Self> {
         map(
             delimited(
@@ -947,6 +1010,10 @@ pub enum Type {
 }
 
 impl Type {
+    pub fn is_numeric(self) -> bool {
+        matches!(self, Type::Byte | Type::Float | Type::Integer)
+    }
+
     fn parse(tokens: Tokens) -> IResult<Tokens, Self> {
         alt((
             map(bool_ty, |_| Self::Boolean),
@@ -1024,6 +1091,26 @@ mod tests {
     /// Asserts the AST defined by two syntaxes is equal; does not compare the original source code
     /// location of each tag.
     fn same_syntax(lhs: &Syntax, rhs: &Syntax) -> bool {
+        fn compare_infix(lhs: Infix, rhs: Infix) -> bool {
+            match lhs {
+                Infix::Relation(lhs) => {
+                    matches!(rhs, Infix::Relation(rhs) if compare_relation(lhs, rhs))
+                }
+                lhs @ _ => lhs == rhs,
+            }
+        }
+
+        fn compare_relation(lhs: Relation, rhs: Relation) -> bool {
+            match lhs {
+                Relation::Equal(_) => matches!(rhs, Relation::Equal(_)),
+                Relation::NotEqual(_) => matches!(rhs, Relation::NotEqual(_)),
+                Relation::GreaterThanEqual(_) => matches!(rhs, Relation::GreaterThanEqual(_)),
+                Relation::LessThanEqual(_) => matches!(rhs, Relation::LessThanEqual(_)),
+                Relation::GreaterThan(_) => matches!(rhs, Relation::GreaterThan(_)),
+                Relation::LessThan(_) => matches!(rhs, Relation::LessThan(_)),
+            }
+        }
+
         fn compare_lit(lhs: Literal, rhs: Literal) -> bool {
             match lhs {
                 Literal::Boolean(lhs, _) => matches!(rhs, Literal::Boolean(rhs, _) if lhs == rhs),
@@ -1046,7 +1133,7 @@ mod tests {
                     matches!(rhs, Expression::Variable(rhs) if compare_var(*lhs, *rhs))
                 }
                 Expression::Infix(lhs_op, lhs1, lhs2, _) => {
-                    matches!(rhs, Expression::Infix(rhs_op, rhs1, rhs2, _) if *lhs_op == *rhs_op && compare_expr(lhs1, rhs1) && compare_expr(lhs2, rhs2))
+                    matches!(rhs, Expression::Infix(rhs_op, rhs1, rhs2, _) if compare_infix(*lhs_op, *rhs_op) && compare_expr(lhs1, rhs1) && compare_expr(lhs2, rhs2))
                 }
                 Expression::Prefix(lhs_op, lhs, _) => {
                     matches!(rhs, Expression::Prefix(rhs_op, rhs, _) if lhs_op == rhs_op && compare_expr(lhs, rhs))
