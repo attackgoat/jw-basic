@@ -286,7 +286,12 @@ impl Instruction {
             Expression::Tuple(_exprs, _) => {
                 todo!();
             }
-            Expression::Variable(var) => vars[var.name],
+            Expression::Variable(var) => vars.get(var.name).copied().ok_or_else(|| {
+                SyntaxError::from_location(
+                    var.location,
+                    format!("Undefined variable `{}`", var.name),
+                )
+            })?,
             Expression::Function(var, arg_exprs, location) => {
                 if let Some((var_ty, var_address)) = vars.get(var.name).copied() {
                     let mut index_address = address + 1;
@@ -1386,7 +1391,7 @@ impl Instruction {
                                 var.name,
                                 var_ty.symbol(),
                                 var_ty.to_string().to_lowercase(),
-                                var_ty.to_string().to_lowercase()
+                                expr_ty.to_string().to_lowercase()
                             ),
                         ));
                     }
