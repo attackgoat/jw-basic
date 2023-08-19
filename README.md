@@ -74,11 +74,6 @@ Arguments:
           File to load and interpret (.bas format)
 
 Options:
-  -d, --debug
-          Display debugging information
-          
-          NOTE: Set `RUST_LOG=debug` environment variable to display output
-
   -h, --help
           Print help (see a summary with '-h')
 
@@ -544,6 +539,16 @@ Running the tests:
 cargo test -- --test-threads=1
 ```
 
+## Performance Profiling
+
+To enable profiling with [puffin](https://crates.io/crates/puffin), use the `profile-with-puffin`
+feature:
+
+```base
+cargo run --features profile-with-puffin -- examples/raycast.bas
+```
+
+<img src=".github/img/profile.png" alt="Flamegraph of performance data" width=30%>
 
 ## Credits
 

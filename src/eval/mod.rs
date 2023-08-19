@@ -394,6 +394,7 @@ impl Interpreter {
         &self.framebuffer_images[0]
     }
 
+    #[profiling::function]
     fn get_graphic(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, var_addr: usize, var_index: i32) {
         debug_assert!(y0 <= y1);
         debug_assert!(x0 <= x1);
@@ -437,6 +438,7 @@ impl Interpreter {
         self.program_index < self.program.len()
     }
 
+    #[profiling::function]
     pub fn line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: u8) {
         debug_assert!(x0 >= 0);
         debug_assert!(x1 >= 0);
@@ -520,6 +522,7 @@ impl Interpreter {
         self.graphics_data[x as usize + y as usize * Self::FRAMEBUFFER_WIDTH as usize]
     }
 
+    #[profiling::function]
     pub fn print(&mut self, s: &str) {
         let text_area = Self::TEXT_COLS * Self::TEXT_ROWS;
 
@@ -581,6 +584,7 @@ impl Interpreter {
         self.location = (0, final_row);
     }
 
+    #[profiling::function]
     fn put_graphic(
         &mut self,
         position: (i32, i32),
@@ -697,6 +701,7 @@ impl Interpreter {
         self.put_graphic((x, y), (width, height), var_addr, var_index, |a, b| *b ^= a);
     }
 
+    #[profiling::function]
     pub fn rectangle(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: u8, is_filled: bool) {
         debug_assert!(x0 >= 0);
         debug_assert!(x1 >= 0);
@@ -760,6 +765,7 @@ impl Interpreter {
         self.framebuffer_images.swap(0, 1);
     }
 
+    #[profiling::function]
     pub fn update(
         &mut self,
         render_graph: &mut RenderGraph,
@@ -850,6 +856,7 @@ impl Interpreter {
         Ok(())
     }
 
+    #[profiling::function]
     fn tick(&mut self) {
         while let Some(instr) = self.program.get(self.program_index) {
             trace!("Executing {:?}", instr);

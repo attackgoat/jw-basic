@@ -16,6 +16,12 @@ use {
     std::{fs::read, process::exit, sync::Arc},
 };
 
+#[cfg(feature = "profile-with-puffin")]
+use {
+    puffin_egui::{profiler_window, puffin::set_scopes_on},
+    screen_13_egui::Egui,
+};
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -25,6 +31,9 @@ struct Args {
 
 fn main() -> anyhow::Result<()> {
     pretty_env_logger::init();
+
+    #[cfg(feature = "profile-with-puffin")]
+    set_scopes_on(true);
 
     let args = Args::parse();
 
@@ -36,6 +45,9 @@ fn main() -> anyhow::Result<()> {
         })
         .build()?;
     let present_pipeline = create_present_pipeline(&event_loop.device)?;
+
+    #[cfg(feature = "profile-with-puffin")]
+    let mut egui = Egui::new(&event_loop.device, event_loop.as_ref());
 
     // Run with `RUST_LOG=debug` to see the generated instructions
     let program = Instruction::compile(&read(args.path)?)?;
@@ -67,7 +79,12 @@ fn main() -> anyhow::Result<()> {
             exit(0);
         }
 
-        present_framebuffer_image(&present_pipeline, frame, interpreter.framebuffer_image());
+        present_framebuffer_image(
+            &present_pipeline,
+            frame,
+            interpreter.framebuffer_image(),
+            #[cfg(feature = "profile-with-puffin")]&mut egui
+        );
     })?;
 
     Ok(())
@@ -143,6 +160,7 @@ fn present_framebuffer_image(
     present_pipeline: &Arc<GraphicPipeline>,
     frame: FrameContext,
     framebuffer_image: &Arc<Image>,
+    #[cfg(feature = "profile-with-puffin")] egui: &mut Egui,
 ) {
     let framebuffer_image = frame.render_graph.bind_node(framebuffer_image);
     let transform = {
@@ -174,4 +192,15 @@ fn present_framebuffer_image(
                 .push_constants(cast_slice(&transform.to_cols_array()))
                 .draw(6, 1, 0, 0);
         });
+
+    #[cfg(feature = "profile-with-puffin")]
+    egui.run(
+        frame.window,
+        frame.events,
+        frame.swapchain_image,
+        frame.render_graph,
+        |ui| {
+            profiler_window(ui);
+        },
+    );
 }
