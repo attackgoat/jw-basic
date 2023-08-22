@@ -13,7 +13,7 @@ use {
     glam::{vec3, Mat4},
     inline_spirv::inline_spirv,
     screen_13::prelude::*,
-    std::{fs::read, process::exit, sync::Arc},
+    std::{fs::read, sync::Arc},
 };
 
 #[cfg(feature = "profile-with-puffin")]
@@ -76,7 +76,7 @@ fn main() -> anyhow::Result<()> {
             })
         {
             // Exit when not running and keyboard input is detected
-            exit(0);
+            *frame.will_exit = true;
         }
 
         present_framebuffer_image(
