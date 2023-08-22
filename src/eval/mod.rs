@@ -52,22 +52,22 @@ pub struct Interpreter {
     character_buf: Arc<Buffer>,
     framebuffer_images: [Arc<Image>; 2],
     graphics_buf: Arc<Lease<Buffer>>,
-    graphics_data: [u8; (Self::FRAMEBUFFER_WIDTH * Self::FRAMEBUFFER_HEIGHT) as _],
+    graphics_data: Vec<u8>,
     graphics_dirty: bool,
     graphics_pipeline: Arc<ComputePipeline>,
-    heap: [u8; Self::HEAP_SIZE],
+    heap: Vec<u8>,
     keyboard: KeyBuf,
     location: (usize, usize),
     palette_buf: Arc<Lease<Buffer>>,
-    palette_data: [u8; 1_024],
+    palette_data: Vec<u8>,
     palette_dirty: bool,
     pool: HashPool,
     program: Vec<Instruction>,
     program_index: usize,
-    stack: [Value; 4_096],
+    stack: Vec<Value>,
     started_at: Instant,
     text_buf: Arc<Lease<Buffer>>,
-    text_data: [u8; Self::TEXT_COLS * Self::TEXT_ROWS * 4],
+    text_data: Vec<u8>,
     text_dirty: bool,
     text_pipeline: Arc<ComputePipeline>,
 }
@@ -88,7 +88,7 @@ impl Interpreter {
 
         let mut pool = HashPool::new(device);
 
-        let graphics_data = [0xFF; (Self::FRAMEBUFFER_WIDTH * Self::FRAMEBUFFER_HEIGHT) as _];
+        let graphics_data = vec![0xFF; (Self::FRAMEBUFFER_WIDTH * Self::FRAMEBUFFER_HEIGHT) as _];
         let mut graphics_buf = pool.lease(BufferInfo::new_mappable(
             graphics_data.len() as _,
             vk::BufferUsageFlags::UNIFORM_BUFFER,
@@ -102,7 +102,7 @@ impl Interpreter {
         ))?;
         Buffer::copy_from_slice(&mut palette_buf, 0, &palette_data);
 
-        let text_data = [0; Self::TEXT_COLS * Self::TEXT_ROWS * 4];
+        let text_data = vec![0; Self::TEXT_COLS * Self::TEXT_ROWS * 4];
         let mut text_buf = pool.lease(BufferInfo::new_mappable(
             text_data.len() as _,
             vk::BufferUsageFlags::UNIFORM_BUFFER,
@@ -147,7 +147,7 @@ impl Interpreter {
             graphics_data,
             graphics_dirty: false,
             graphics_pipeline,
-            heap: [0; Self::HEAP_SIZE],
+            heap: vec![0; Self::HEAP_SIZE],
             keyboard: KeyBuf::default(),
             location: (0, 0),
             palette_buf: Arc::new(palette_buf),
@@ -156,7 +156,7 @@ impl Interpreter {
             pool,
             program,
             program_index: 0,
-            stack: [ZERO_BYTE; 4_096],
+            stack: vec![ZERO_BYTE; 4_096],
             started_at: Instant::now(),
             text_buf: Arc::new(text_buf),
             text_data,

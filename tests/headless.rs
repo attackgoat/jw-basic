@@ -393,7 +393,7 @@ struct Headless {
     framebuffer: [u8; Self::FRAMEBUFFER_LEN],
     interpreter: Interpreter,
     charset: [[[bool; 5]; 6]; 96],
-    palette: [u8; 1024],
+    palette: Vec<u8>,
 }
 
 impl Headless {

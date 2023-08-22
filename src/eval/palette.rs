@@ -1,8 +1,8 @@
 use bytemuck::cast_slice;
 
-pub fn vga_256() -> [u8; 1_024] {
+pub fn vga_256() -> Vec<u8> {
     let color = |r: u8, g: u8, b: u8| [r, g, b, 0xFF];
-    let mut res = [0; 1_024];
+    let mut res = vec![0; 1_024];
     res.copy_from_slice(cast_slice(&[
         color(0x00, 0x00, 0x00),
         color(0x00, 0x00, 0xAA),
