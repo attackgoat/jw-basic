@@ -35,14 +35,14 @@ fn linear_len_from_multi(subscripts: &[Range<i32>]) -> usize {
         .product()
 }
 
-fn virtual_key_code(key_code: u8) -> VirtualKeyCode {
+fn virtual_key_code(key_code: u8) -> KeyCode {
     // TODO: Add more keys or use scan codes or do anything better here
     match key_code {
-        0 => VirtualKeyCode::Escape,
-        1 => VirtualKeyCode::Left,
-        2 => VirtualKeyCode::Right,
-        3 => VirtualKeyCode::Up,
-        4 => VirtualKeyCode::Down,
+        0 => KeyCode::Escape,
+        1 => KeyCode::ArrowLeft,
+        2 => KeyCode::ArrowRight,
+        3 => KeyCode::ArrowUp,
+        4 => KeyCode::ArrowDown,
         _ => unimplemented!(),
     }
 }
@@ -1136,10 +1136,10 @@ impl Interpreter {
                 &Instruction::KeyDown(key, dst) => {
                     self.stack[dst] = Value::Boolean(
                         self.keyboard
-                            .is_pressed(&virtual_key_code(self.stack[key].byte()))
+                            .is_pressed(virtual_key_code(self.stack[key].byte()))
                             || self
                                 .keyboard
-                                .is_held(&virtual_key_code(self.stack[key].byte())),
+                                .is_held(virtual_key_code(self.stack[key].byte())),
                     );
                 }
                 &Instruction::Locate(col, row) => self.locate(
